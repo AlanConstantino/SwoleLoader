@@ -45,8 +45,6 @@ constexpr const u8 HBL_NPDM_DATA[]{
     #embed <exefs/main.npdm>
 };
 
-bool g_core_launch_pending{};
-
 // stdio-like wrapper for std::vector
 struct BufHelper {
     BufHelper() = default;
@@ -1048,101 +1046,6 @@ auto install_forwader_internal(ui::ProgressBox* pbox, OwoConfig& config, NcmStor
 }
 
 } // namespace
-
-auto prepare_core_launch(const std::string& nro_path, const std::string& args, CpuCoreMode core_mode) -> Result {
-    R_UNLESS(App::CanSetCpuCores(), Result_CoreUnavailable);
-    R_UNLESS(!nro_path.empty() && !args.empty(), Result_OwoBadArgs);
-
-    u64 program_id{};
-    R_TRY(svcGetInfo(&program_id, InfoType_ProgramId, CUR_PROCESS_HANDLE, 0));
-    R_UNLESS(program_id, Result_CoreUnavailable);
-
-    R_TRY(splCryptoInitialize());
-    ON_SCOPE_EXIT(splCryptoExit());
-
-    keys::Keys keys;
-    R_TRY(keys::parse_keys(keys, false));
-
-    FileEntries exefs;
-    add_file_entry(exefs, "main", HBL_MAIN_DATA);
-    add_file_entry(exefs, "main.npdm", HBL_NPDM_DATA);
-
-    NpdmPatch npdm_patch;
-    npdm_patch.tid = program_id;
-    npdm_patch.core_mode = core_mode;
-    R_UNLESS(patch_npdm(exefs[1].data, npdm_patch), Result_CoreUnavailable);
-
-    auto return_path = App::GetExePath().toString();
-    if (!return_path.starts_with("sdmc:")) {
-        return_path = "sdmc:" + return_path;
-    }
-    const auto return_args = nro_add_arg(return_path);
-
-    R_TRY(lrInitialize());
-    ON_SCOPE_EXIT(lrExit());
-
-    LrLocationResolver resolver{};
-    NcmStorageId redirect_storage = NcmStorageId_None;
-    char original_path[FS_MAX_PATH]{};
-    constexpr NcmStorageId storage_ids[]{
-        NcmStorageId_SdCard,
-        NcmStorageId_BuiltInUser,
-        NcmStorageId_GameCard,
-        NcmStorageId_BuiltInSystem,
-    };
-    for (const auto storage_id : storage_ids) {
-        LrLocationResolver candidate{};
-        if (R_SUCCEEDED(lrOpenLocationResolver(storage_id, &candidate))) {
-            if (R_SUCCEEDED(lrLrResolveProgramPath(&candidate, program_id, original_path))) {
-                resolver = candidate;
-                redirect_storage = storage_id;
-                break;
-            }
-            serviceClose(&candidate.s);
-        }
-    }
-    R_UNLESS(redirect_storage != NcmStorageId_None, Result_CoreUnavailable);
-    ON_SCOPE_EXIT(serviceClose(&resolver.s));
-
-    constexpr const char* nca_sd_path = "/config/sphaira/core-launch/program.nca";
-    const std::string nca_loader_path = "@Sdcard:" + std::string{nca_sd_path};
-
-    FileEntries romfs;
-    add_file_entry(romfs, "/nextArgv", args.data(), args.size());
-    add_file_entry(romfs, "/nextNroPath", nro_path.data(), nro_path.size());
-    add_file_entry(romfs, "/returnArgv", return_args.data(), return_args.size());
-    add_file_entry(romfs, "/returnNroPath", return_path.data(), return_path.size());
-    add_file_entry(romfs, "/redirectStorage", &redirect_storage, sizeof(redirect_storage));
-    add_file_entry(romfs, "/redirectProgramId", &program_id, sizeof(program_id));
-    add_file_entry(romfs, "/redirectPath", original_path, std::strlen(original_path));
-    const auto program = create_program_nca(program_id, keys, exefs, romfs, {});
-    fs::FsNativeSd sd;
-    R_TRY(sd.CreateDirectoryRecursively("/config/sphaira/core-launch"));
-    R_TRY(sd.write_entire_file(nca_sd_path, program.data));
-    R_TRY(sd.Commit());
-
-    R_TRY(lrLrRedirectProgramPath(&resolver, program_id, nca_loader_path.c_str()));
-
-    char redirected_path[FS_MAX_PATH]{};
-    const auto resolve_result = lrLrResolveProgramPath(&resolver, program_id, redirected_path);
-    if (R_FAILED(resolve_result) || nca_loader_path != redirected_path) {
-        lrLrRedirectProgramPath(&resolver, program_id, original_path);
-        return R_FAILED(resolve_result) ? resolve_result : Result_CoreUnavailable;
-    }
-
-    const auto launch_result = appletRequestLaunchApplication(0, nullptr);
-    if (R_FAILED(launch_result)) {
-        lrLrRedirectProgramPath(&resolver, program_id, original_path);
-        return launch_result;
-    }
-
-    g_core_launch_pending = true;
-    R_SUCCEED();
-}
-
-auto core_launch_pending() -> bool {
-    return g_core_launch_pending;
-}
 
 auto install_forwarder(ui::ProgressBox* pbox, OwoConfig& config, NcmStorageId storage_id) -> Result {
     return install_forwader_internal(pbox, config, storage_id);

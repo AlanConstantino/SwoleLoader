@@ -1,11 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-# generic options.
-option(ENABLE_NVJPG "" OFF)
-option(ENABLE_NSZ "enables exporting to nsz" ON)
-
-# lib options.
-option(ENABLE_LIBUSBHSFS "enables FAT/exFAT hdd mounting" ON)
+# usb drive formats. FAT32 and exFAT are always supported.
 # ntfs is provided by ntfs-3g (GPLv2+, compatible with sphaira's GPLv3).
 # needs the portlib: (dkp-)pacman -S switch-ntfs-3g
 option(ENABLE_NTFS "enables NTFS hdd mounting, requires switch-ntfs-3g" ON)
@@ -13,27 +8,6 @@ option(ENABLE_NTFS "enables NTFS hdd mounting, requires switch-ntfs-3g" ON)
 # binary size and next to no usb hdd is formatted with it.
 # needs the portlib: (dkp-)pacman -S switch-lwext4
 option(ENABLE_EXT4 "enables EXT2/3/4 hdd mounting, requires switch-lwext4" OFF)
-option(ENABLE_LIBUSBDVD "enables cd/dvd/iso/cue mounting" ON)
-option(ENABLE_FTPSRV "enables MTP server support" ON)
-option(ENABLE_LIBHAZE "enables MTP server support" ON)
-
-# audio options.
-option(ENABLE_AUDIO_MP3 "" ON)
-option(ENABLE_AUDIO_OGG "" ON)
-option(ENABLE_AUDIO_WAV "" ON)
-option(ENABLE_AUDIO_FLAC "" ON)
-
-# devoptab options.
-option(ENABLE_DEVOPTAB_HTTP "" ON)
-option(ENABLE_DEVOPTAB_NFS "" ON)
-option(ENABLE_DEVOPTAB_SMB2 "" ON)
-option(ENABLE_DEVOPTAB_FTP "" ON)
-option(ENABLE_DEVOPTAB_WEBDAV "" ON)
-# disable by default because we are CPU bound for upload/download.
-# max speed is 8MiB/s, which is fine for wifi, but awful for ethernet.
-# other clients get 36-40MiB/s.
-# it also adds 230k to binary size, and i don't think anyone will use it.
-option(ENABLE_DEVOPTAB_SFTP "" OFF)
 
 include(${CMAKE_SOURCE_DIR}/app.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/app_config.cmake)
@@ -89,30 +63,12 @@ add_executable(sphaira
     source/nxloader/package_size_fs.cpp
     source/nxloader/install_review.cpp
     source/nxloader/update_signature.cpp
-    source/ui/menus/album_menu.cpp
-    source/ui/menus/album_share_menu.cpp
-    source/ui/menus/appstore.cpp
-    source/ui/menus/ownfoil.cpp
-    source/ui/menus/ownfoil_title.cpp
     source/ui/menus/file_viewer.cpp
     source/ui/menus/image_viewer.cpp
     source/ui/menus/filebrowser.cpp
     source/ui/menus/file_picker.cpp
-    source/ui/menus/homebrew.cpp
-    source/ui/menus/irs_menu.cpp
     source/ui/menus/main_menu.cpp
     source/ui/menus/menu_base.cpp
-    source/ui/menus/save_menu.cpp
-    source/ui/menus/storage_menu.cpp
-    source/ui/menus/themezer.cpp
-    source/ui/menus/ghdl.cpp
-    source/ui/menus/usb_menu.cpp
-    source/ui/menus/gc_menu.cpp
-    source/ui/menus/game_menu.cpp
-    source/ui/menus/game_meta_menu.cpp
-    source/ui/menus/game_nca_menu.cpp
-    source/ui/menus/grid_menu_base.cpp
-    source/ui/menus/install_stream_menu_base.cpp
 
     source/ui/error_box.cpp
     source/ui/notification.cpp
@@ -121,20 +77,16 @@ add_executable(sphaira
     source/ui/popup_list.cpp
     source/ui/popup_multi_select.cpp
     source/ui/progress_box.cpp
-    source/ui/install_queue.cpp
     source/ui/scrollable_text.cpp
     source/ui/sidebar.cpp
     source/ui/widget.cpp
     source/ui/list.cpp
     source/ui/scrolling_text.cpp
-    source/ui/music_player.cpp
     source/ui/forwarder_editor.cpp
     source/ui/steamgriddb_icon.cpp
 
     source/app.cpp
     source/download.cpp
-    source/dumper.cpp
-    source/game_lang.cpp
     source/option.cpp
     source/evman.cpp
     source/fs.cpp
@@ -143,55 +95,23 @@ add_executable(sphaira
     source/log.cpp
     source/crash_handler.cpp
     source/main.cpp
-    source/album_caps.cpp
-    source/album_server.cpp
     source/nro.cpp
-    source/nxlink.cpp
-    source/qrcode.cpp
     source/owo.cpp
     source/swkbd.cpp
-    source/web.cpp
     source/hasher.cpp
     source/i18n.cpp
     source/threaded_file_transfer.cpp
     source/title_info.cpp
     source/minizip_helper.cpp
     source/msp.cpp
-    source/nx_versions.cpp
 
     source/utils/utils.cpp
     source/utils/audio.cpp
-    source/utils/devoptab_common.cpp
-    source/utils/devoptab_romfs.cpp
-    source/utils/devoptab_save.cpp
-    source/utils/devoptab_nro.cpp
-    source/utils/devoptab_nca.cpp
-    source/utils/devoptab_nsp.cpp
-    source/utils/devoptab_xci.cpp
-    source/utils/devoptab_zip.cpp
-    source/utils/devoptab_bfsar.cpp
-    source/utils/devoptab_vfs.cpp
-    source/utils/devoptab_fatfs.cpp
-    source/utils/devoptab_game.cpp
-    source/utils/devoptab_mounts.cpp
-    source/utils/devoptab.cpp
-    source/utils/ownfoil.cpp
-    source/utils/ownfoil_discovery.cpp
-    source/utils/ownfoil_api.cpp
-    source/utils/ownfoil_installed.cpp
-
-    source/usb/base.cpp
-    source/usb/usbds.cpp
-    source/usb/usbhs.cpp
-    source/usb/usb_uploader.cpp
-    source/usb/usb_installer.cpp
-    source/usb/usb_dumper.cpp
 
     source/yati/yati.cpp
     source/yati/container/nsp.cpp
     source/yati/container/xci.cpp
     source/yati/source/file.cpp
-    source/yati/source/http.cpp
     source/yati/source/stream.cpp
     source/yati/source/stream_file.cpp
 
@@ -210,7 +130,9 @@ target_compile_definitions(sphaira PRIVATE
     -DAPP_VERSION="${sphaira_VERSION}"
     -DAPP_NAME="${APP_NAME}"
     -DAPP_NRO_NAME="${APP_NRO}"
+    -DAPP_FOLDER="${APP_FOLDER}"
     -DAPP_CONFIG_DIR="/config/${APP_FOLDER}"
+    -DAPP_CACHE_DIR="/config/${APP_FOLDER}/cache"
     -DAPP_UPDATE_REPO="${APP_UPDATE_GITHUB_REPO}"
     -DAPP_DISPLAY_VERSION="${sphaira_DISPLAY_VERSION}"
     -DCURL_NO_OLDIES=1
@@ -297,310 +219,53 @@ FetchContent_Declare(libnxtc
     GIT_TAG aa0a375
 )
 
-FetchContent_Declare(nvjpg
-    GIT_REPOSITORY https://github.com/ITotalJustice/oss-nvjpg.git
-    GIT_TAG 45680e7
-)
+# USBHSFS_GPL turns on both ntfs *and* ext4, they can also be enabled
+# individually, which is what we do here as ext4 is what costs the most
+# binary size.
+set(USBHSFS_GPL OFF)
+set(USBHSFS_NTFS ${ENABLE_NTFS})
+set(USBHSFS_EXT4 ${ENABLE_EXT4})
+set(USBHSFS_SXOS_DISABLE ON)
 
-FetchContent_Declare(dr_libs
-    GIT_REPOSITORY https://github.com/mackron/dr_libs.git
-    GIT_TAG b962384
-    SOURCE_SUBDIR NONE
-)
-
-if (ENABLE_NVJPG)
-    FetchContent_Declare(nvjpg
-        GIT_REPOSITORY https://github.com/ITotalJustice/oss-nvjpg.git
-        GIT_TAG 45680e7
-    )
-
-    FetchContent_MakeAvailable(nvjpg)
-
-    add_library(nvjpg
-        ${nvjpg_SOURCE_DIR}/lib/decoder.cpp
-        ${nvjpg_SOURCE_DIR}/lib/image.cpp
-        ${nvjpg_SOURCE_DIR}/lib/surface.cpp
-    )
-
-    target_include_directories(nvjpg PUBLIC ${nvjpg_SOURCE_DIR}/include)
-    set_target_properties(nvjpg PROPERTIES CXX_STANDARD 26)
-
-    target_link_libraries(nvjpg PRIVATE nvjpg)
-    target_compile_definitions(sphaira PRIVATE ENABLE_NVJPG)
+if (ENABLE_NTFS)
+    find_library(ntfs_3g_lib ntfs-3g)
+    if (NOT ntfs_3g_lib)
+        message(FATAL_ERROR "NTFS support is enabled but ntfs-3g is not installed, run '(dkp-)pacman -S switch-ntfs-3g' or configure with -DENABLE_NTFS=OFF")
+    endif()
 endif()
 
-if (ENABLE_NSZ)
-    target_sources(sphaira PRIVATE source/utils/nsz_dumper.cpp)
-    target_compile_definitions(sphaira PRIVATE ENABLE_NSZ)
+if (ENABLE_EXT4)
+    find_library(lwext4_lib lwext4)
+    if (NOT lwext4_lib)
+        message(FATAL_ERROR "EXT4 support is enabled but lwext4 is not installed, run '(dkp-)pacman -S switch-lwext4' or configure with -DENABLE_EXT4=OFF")
+    endif()
 endif()
 
-if (ENABLE_LIBUSBHSFS)
-    # USBHSFS_GPL turns on both ntfs *and* ext4, they can also be enabled
-    # individually, which is what we do here as ext4 is what costs the most
-    # binary size.
-    set(USBHSFS_GPL OFF)
-    set(USBHSFS_NTFS ${ENABLE_NTFS})
-    set(USBHSFS_EXT4 ${ENABLE_EXT4})
-    set(USBHSFS_SXOS_DISABLE ON)
+FetchContent_Declare(libusbhsfs
+    GIT_REPOSITORY https://github.com/ITotalJustice/libusbhsfs.git
+    GIT_TAG 625269b
+)
 
-    if (ENABLE_NTFS)
-        find_library(ntfs_3g_lib ntfs-3g)
-        if (NOT ntfs_3g_lib)
-            message(FATAL_ERROR "NTFS support is enabled but ntfs-3g is not installed, run '(dkp-)pacman -S switch-ntfs-3g' or configure with -DENABLE_NTFS=OFF")
-        endif()
-    endif()
+FetchContent_MakeAvailable(libusbhsfs)
 
-    if (ENABLE_EXT4)
-        find_library(lwext4_lib lwext4)
-        if (NOT lwext4_lib)
-            message(FATAL_ERROR "EXT4 support is enabled but lwext4 is not installed, run '(dkp-)pacman -S switch-lwext4' or configure with -DENABLE_EXT4=OFF")
-        endif()
-    endif()
+target_compile_definitions(sphaira PRIVATE ENABLE_LIBUSBHSFS)
+target_link_libraries(sphaira PRIVATE libusbhsfs)
 
-    FetchContent_Declare(libusbhsfs
-        GIT_REPOSITORY https://github.com/ITotalJustice/libusbhsfs.git
-        GIT_TAG 625269b
-    )
+if (ENABLE_NTFS)
+    target_compile_definitions(sphaira PRIVATE ENABLE_NTFS)
+endif()
 
-    FetchContent_MakeAvailable(libusbhsfs)
-
-    target_compile_definitions(sphaira PRIVATE ENABLE_LIBUSBHSFS)
-    target_link_libraries(sphaira PRIVATE libusbhsfs)
-
-    if (ENABLE_NTFS)
-        target_compile_definitions(sphaira PRIVATE ENABLE_NTFS)
-    endif()
-
-    if (ENABLE_EXT4)
-        target_compile_definitions(sphaira PRIVATE ENABLE_EXT4)
-    endif()
-else()
-    target_sources(sphaira PRIVATE source/ff16/ffunicode.c)
+if (ENABLE_EXT4)
+    target_compile_definitions(sphaira PRIVATE ENABLE_EXT4)
 endif()
 
 find_path(mbedtls_inc mbedtls REQUIRED)
 
-if (ENABLE_LIBUSBDVD)
-    FetchContent_Declare(libusbdvd
-        GIT_REPOSITORY https://github.com/proconsule/libusbdvd.git
-        GIT_TAG c7598a9
-    )
-
-    FetchContent_MakeAvailable(libusbdvd)
-
-    add_library(libusbdvd
-        ${libusbdvd_SOURCE_DIR}/source/usbdvd.cpp
-        ${libusbdvd_SOURCE_DIR}/source/usbdvd_scsi.cpp
-        ${libusbdvd_SOURCE_DIR}/source/usbdvd_utils.cpp
-        ${libusbdvd_SOURCE_DIR}/source/CSS/usbdvd_css.cpp
-        ${libusbdvd_SOURCE_DIR}/source/CSS/usbdvd_csscache.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/usbdvd_datadisc.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/audiocdfs/audiocdfs.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/audiocdfs/cdaudio_devoptab.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/iso9660/usbdvd_iso9660.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/iso9660/iso9660_devoptab.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/udf/usbdvd_udf.cpp
-        ${libusbdvd_SOURCE_DIR}/source/fs/udf/udf_devoptab.cpp
-        ${libusbdvd_SOURCE_DIR}/source/os/switch/switch_usb.cpp
-
-    )
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/)
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/os/switch)
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/CSS)
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/fs)
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/fs/audiocdfs)
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/fs/iso9660)
-    target_include_directories(libusbdvd PRIVATE ${libusbdvd_SOURCE_DIR}/source/fs/udf)
-    target_include_directories(libusbdvd PUBLIC ${libusbdvd_SOURCE_DIR}/include)
-    target_include_directories(libusbdvd PUBLIC ${mbedtls_inc})
-
-    target_compile_definitions(sphaira PRIVATE ENABLE_LIBUSBDVD)
-    target_link_libraries(sphaira PRIVATE libusbdvd)
-    target_sources(sphaira PRIVATE source/usbdvd.cpp)
-endif()
-
-if (ENABLE_FTPSRV)
-    FetchContent_Declare(ftpsrv
-        GIT_REPOSITORY https://github.com/ITotalJustice/ftpsrv.git
-        GIT_TAG 7c82402
-        SOURCE_SUBDIR NONE
-        PATCH_COMMAND sh "${CMAKE_SOURCE_DIR}/tools/nxloader-builder/apply-patch.sh" "${CMAKE_SOURCE_DIR}/cmake/patches/ftpsrv-upload-callback.patch"
-    )
-
-    FetchContent_MakeAvailable(ftpsrv)
-
-    set(FTPSRV_LIB_BUILD TRUE)
-    set(FTPSRV_LIB_VFS_CUSTOM ${ftpsrv_SOURCE_DIR}/src/platform/nx/vfs_nx.h)
-    set(FTPSRV_LIB_PATH_SIZE 0x301)
-    set(FTPSRV_LIB_SESSIONS 16)
-    set(FTPSRV_LIB_BUF_SIZE 1024*64)
-
-    set(FTPSRV_LIB_CUSTOM_DEFINES
-        USE_VFS_SAVE=$<BOOL:FALSE>
-        USE_VFS_STORAGE=$<BOOL:TRUE>
-        # disabled as it may conflict with the gamecard menu.
-        USE_VFS_GC=$<BOOL:FALSE>
-        USE_VFS_USBHSFS=$<BOOL:FALSE>
-        VFS_NX_BUFFER_IO=$<BOOL:TRUE>
-        # let sphaira handle init / closing of the hdd.
-        USE_VFS_USBHSFS_INIT=$<BOOL:FALSE>
-        # disable romfs mounting as otherwise we cannot write / modify sphaira.nro
-        USE_VFS_ROMFS=$<BOOL:FALSE>
-        FTP_SOCKET_HEADER="${ftpsrv_SOURCE_DIR}/src/platform/nx/socket_nx.h"
-    )
-
-    add_subdirectory(${ftpsrv_SOURCE_DIR} binary_dir)
-
-    add_library(ftpsrv_helper
-        ${ftpsrv_SOURCE_DIR}/src/platform/nx/vfs_nx.c
-        ${ftpsrv_SOURCE_DIR}/src/platform/nx/vfs/vfs_nx_none.c
-        ${ftpsrv_SOURCE_DIR}/src/platform/nx/vfs/vfs_nx_root.c
-        ${ftpsrv_SOURCE_DIR}/src/platform/nx/vfs/vfs_nx_fs.c
-        ${ftpsrv_SOURCE_DIR}/src/platform/nx/vfs/vfs_nx_storage.c
-        ${ftpsrv_SOURCE_DIR}/src/platform/nx/utils.c
-    )
-
-    target_link_libraries(ftpsrv_helper PUBLIC ftpsrv)
-    target_include_directories(ftpsrv_helper PUBLIC ${ftpsrv_SOURCE_DIR}/src/platform)
-
-    target_compile_definitions(sphaira PRIVATE ENABLE_FTPSRV)
-    target_link_libraries(sphaira PRIVATE ftpsrv_helper)
-
-    target_sources(sphaira PRIVATE
-        source/ftpsrv_helper.cpp
-        source/ui/menus/ftp_menu.cpp
-    )
-endif()
-
-if (ENABLE_LIBHAZE)
-    FetchContent_Declare(libhaze
-        GIT_REPOSITORY https://github.com/R-YaTian/libhaze.git
-        GIT_TAG 9f5467c
-    )
-
-    FetchContent_MakeAvailable(libhaze)
-    target_compile_definitions(sphaira PRIVATE ENABLE_LIBHAZE)
-    target_link_libraries(sphaira PRIVATE haze)
-
-    target_sources(sphaira PRIVATE
-        source/haze_helper.cpp
-        source/ui/menus/mtp_menu.cpp
-    )
-endif()
-
-if (ENABLE_DEVOPTAB_HTTP)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_HTTP)
-    target_sources(sphaira PRIVATE source/utils/devoptab_http.cpp)
-endif()
-
-if (ENABLE_DEVOPTAB_NFS)
-    FetchContent_Declare(libnfs
-        GIT_REPOSITORY https://github.com/ITotalJustice/libnfs.git
-        GIT_TAG 65f3e11
-    )
-
-    FetchContent_MakeAvailable(libnfs)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_NFS)
-    target_link_libraries(sphaira PRIVATE nfs)
-    target_sources(sphaira PRIVATE source/utils/devoptab_nfs.cpp)
-
-    # todo: fix this upstream as nfs should export these folders.
-    target_include_directories(sphaira PRIVATE
-        ${libnfs_SOURCE_DIR}/include
-        ${libnfs_SOURCE_DIR}/include/nfsc
-        ${libnfs_SOURCE_DIR}/nfs
-    )
-endif()
-
-if (ENABLE_DEVOPTAB_SMB2)
-    FetchContent_Declare(libsmb2
-        GIT_REPOSITORY https://github.com/ITotalJustice/libsmb2.git
-        GIT_TAG 867beea
-    )
-
-    FetchContent_MakeAvailable(libsmb2)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_SMB2)
-    target_link_libraries(sphaira PRIVATE smb2)
-    target_sources(sphaira PRIVATE source/utils/devoptab_smb2.cpp)
-endif()
-
-if (ENABLE_DEVOPTAB_FTP)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_FTP)
-    target_sources(sphaira PRIVATE source/utils/devoptab_ftp.cpp)
-endif()
-
-if (ENABLE_DEVOPTAB_SFTP)
-    # set to build from source, otherwise it will link against the older dkp libssh2.
-    if (1)
-        set(CRYPTO_BACKEND mbedTLS)
-        set(ENABLE_ZLIB_COMPRESSION ON)
-        set(ENABLE_DEBUG_LOGGING OFF)
-        set(BUILD_EXAMPLES OFF)
-        set(BUILD_TESTING OFF)
-        set(LINT OFF)
-
-        FetchContent_Declare(libssh2
-            GIT_REPOSITORY https://github.com/libssh2/libssh2.git
-            # GIT_TAG a0dafb3 # latest commit, works fine, but i'll stick to main release.
-            GIT_TAG libssh2-1.11.1
-        )
-
-        FetchContent_MakeAvailable(libssh2)
-        target_link_libraries(sphaira PRIVATE libssh2::libssh2)
-    else()
-        include(FindPkgConfig)
-        pkg_check_modules(LIBSSH2 libssh2 REQUIRED)
-        target_include_directories(sphaira PRIVATE ${LIBSSH2_INCLUDE_DIRS})
-        target_link_libraries(sphaira PRIVATE ${LIBSSH2_LIBRARIES})
-    endif()
-
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_SFTP)
-    target_sources(sphaira PRIVATE source/utils/devoptab_sftp.cpp)
-endif()
-
-if (ENABLE_DEVOPTAB_WEBDAV)
-    set(PUGIXML_NO_EXCEPTIONS ON)
-    set(PUGIXML_WCHAR_MODE OFF)
-
-    FetchContent_Declare(pugixml
-        GIT_REPOSITORY https://github.com/zeux/pugixml.git
-        GIT_TAG v1.15
-    )
-
-    FetchContent_MakeAvailable(pugixml)
-    target_compile_definitions(sphaira PRIVATE ENABLE_DEVOPTAB_WEBDAV)
-    target_link_libraries(sphaira PRIVATE pugixml)
-    target_sources(sphaira PRIVATE source/utils/devoptab_webdav.cpp)
-endif()
-
-if (ENABLE_AUDIO_MP3)
-    FetchContent_Declare(id3v2lib
-        GIT_REPOSITORY https://github.com/R-YaTian/id3v2lib.git
-        GIT_TAG 43e4592
-    )
-
-    FetchContent_MakeAvailable(id3v2lib)
-    target_link_libraries(sphaira PRIVATE id3v2lib)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_MP3)
-endif()
-
-if (ENABLE_AUDIO_OGG)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_OGG)
-endif()
-
-if (ENABLE_AUDIO_WAV)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_WAV)
-endif()
-
-if (ENABLE_AUDIO_FLAC)
-    target_compile_definitions(sphaira PRIVATE ENABLE_AUDIO_FLAC)
-endif()
-
 # ztsd
 set(ZSTD_BUILD_STATIC ON)
 set(ZSTD_BUILD_SHARED OFF)
-set(ZSTD_BUILD_COMPRESSION ${ENABLE_NSZ})
-set(ZSTD_MULTITHREAD_SUPPORT ${ENABLE_NSZ})
+set(ZSTD_BUILD_COMPRESSION OFF)
+set(ZSTD_MULTITHREAD_SUPPORT OFF)
 set(ZSTD_BUILD_DECOMPRESSION ON)
 set(ZSTD_BUILD_DICTBUILDER OFF)
 set(ZSTD_LEGACY_SUPPORT OFF)
@@ -645,14 +310,10 @@ FetchContent_MakeAvailable(
     yyjson
     zstd
     libnxtc
-    dr_libs
 )
 
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
-
-add_library(dr_libs INTERFACE)
-target_include_directories(dr_libs INTERFACE ${dr_libs_SOURCE_DIR})
 
 find_package(ZLIB REQUIRED)
 find_path(zlib_inc zlib.h)
@@ -670,13 +331,6 @@ find_path(minizip_inc minizip REQUIRED)
 find_package(CURL REQUIRED)
 find_library(mbedcrypto_lib mbedcrypto REQUIRED)
 
-add_library(fatfs
-    source/ff16/diskio.c
-    source/ff16/ff.c
-)
-
-target_include_directories(fatfs PUBLIC source/ff16)
-
 set_target_properties(sphaira PROPERTIES
     C_STANDARD 23
     C_EXTENSIONS ON
@@ -691,8 +345,6 @@ target_link_libraries(sphaira PRIVATE
     stb
     yyjson
     libnxtc
-    fatfs
-    dr_libs
     libzstd_static
 
     ${minizip_lib}

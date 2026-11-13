@@ -25,12 +25,6 @@ namespace sphaira {
 
 using SoundEffect = audio::SoundEffect;
 
-enum class LaunchType {
-    Normal,
-    Forwader_Unknown,
-    Forwader_Sphaira,
-};
-
 struct AmsEmummcPaths {
     char file_based_path[0x80];
     char nintendo[0x80];
@@ -79,10 +73,6 @@ public:
     // same, with extra detail shown under the message, such as the path that failed.
     static Result PushErrorBox(Result rc, const std::string& message, const std::string& detail);
 
-    static auto GetThemeMetaList() -> std::span<ThemeMeta>;
-    static void SetTheme(s64 theme_index);
-    static auto GetThemeIndex() -> s64;
-
     static auto GetDefaultImage() -> int;
     static auto GetDefaultImageData() -> std::span<const u8>;
 
@@ -91,9 +81,6 @@ public:
     // returns true if we are hbmenu.
     static auto IsHbmenu() -> bool;
 
-    static auto GetMtpEnable() -> bool;
-    static auto GetFtpEnable() -> bool;
-    static auto GetNxlinkEnable() -> bool;
     static auto GetHddEnable() -> bool;
     static auto GetWriteProtect() -> bool;
     static auto GetHddShowSystemFiles() -> bool;
@@ -103,17 +90,9 @@ public:
     static auto GetInstallSysmmcEnable() -> bool;
     static auto GetInstallEmummcEnable() -> bool;
     static auto GetInstallSdEnable() -> bool;
-    static auto GetThemeMusicEnable() -> bool;
     static auto GetLanguage() -> long;
     static auto GetTextScrollSpeed() -> long;
 
-    static auto GetNszCompressLevel() -> u8;
-    static auto GetNszThreadCount() -> u8;
-    static auto GetNszBlockExponent() -> u8;
-
-    static void SetMtpEnable(bool enable);
-    static void SetFtpEnable(bool enable);
-    static void SetNxlinkEnable(bool enable);
     static void SetHddEnable(bool enable);
     static void SetWriteProtect(bool enable);
     static void SetHddShowSystemFiles(bool enable);
@@ -126,7 +105,6 @@ public:
     static void SetInstallEmummcEnable(bool enable);
     static void SetInstallSdEnable(bool enable);
     static void SetInstallPrompt(bool enable);
-    static void SetThemeMusicEnable(bool enable);
     static void Set12HourTimeEnable(bool enable);
     static void SetLanguage(long index);
     static void SetTextScrollSpeed(long index);
@@ -136,15 +114,9 @@ public:
 
     static void PlaySoundEffect(SoundEffect effect);
 
-    static void DisplayThemeOptions(bool left_side = true);
-    // todo:
-    static void DisplayNetworkOptions(bool left_side = true);
     static void DisplayAdvancedOptions(bool left_side = true);
     static void DisplayLogOptions();
     static void DisplayInstallOptions(bool left_side = true);
-    static void DisplayDumpOptions(bool left_side = true);
-    static void DisplayFtpOptions(bool left_side = true);
-    static void DisplayMtpOptions(bool left_side = true);
     static void DisplayHddOptions(bool left_side = true);
 
     // helper for sidebar options to toggle install on/off
@@ -163,12 +135,6 @@ public:
 
     void LoadTheme(const ThemeMeta& meta);
     void CloseTheme();
-    void CloseThemeBackgroundMusic();
-    void ScanThemes(const std::string& path);
-    void ScanThemeEntries();
-    void LoadAndPlayThemeMusic();
-    static Result SetDefaultBackgroundMusic(fs::Fs* fs, const fs::FsPath& path);
-    static void SetBackgroundMusicPause(bool pause);
 
     static Result GetSdSize(s64* free, s64* total);
     static Result GetEmmcSize(s64* free, s64* total);
@@ -184,10 +150,6 @@ public:
 
     static auto IsApplet() -> bool {
         return !IsApplication();
-    }
-
-    static auto CanSetCpuCores() -> bool {
-        return IsApplication() && GetApp()->m_is_launched_via_sphaira_forwader;
     }
 
     // returns true if launched in applet mode with a title suspended in the background.
@@ -290,7 +252,6 @@ public:
 
 // private:
     static constexpr inline auto CONFIG_PATH = APP_CONFIG_DIR "/config.ini";
-    static constexpr inline auto PLAYLOG_PATH = "/config/sphaira/playlog.ini";
     static constexpr inline auto INI_SECTION = "config";
     static constexpr inline auto DEFAULT_THEME_PATH = "romfs:/themes/default_theme.ini";
 
@@ -299,14 +260,11 @@ public:
     u64 m_last_input_ns{};
     int m_default_image{};
 
-    bool m_is_launched_via_sphaira_forwader{};
-
     NVGcontext* vg{};
     PadState m_pad{};
     TouchInfo m_touch_info{};
     Controller m_controller{};
     KeyboardState m_keyboard{};
-    std::vector<ThemeMeta> m_theme_meta_entries;
 
     Vec2 m_scale{1, 1};
 
@@ -317,16 +275,11 @@ public:
     AppletHookCookie m_appletHookCookie{};
 
     Theme m_theme{};
-    fs::FsPath theme_path{};
-    s64 m_theme_index{};
 
     AmsEmummcPaths m_emummc_paths{};
     bool m_quit{};
 
-    // network
-    option::OptionBool m_nxlink_enabled{INI_SECTION, "nxlink_enabled", true};
-    option::OptionBool m_mtp_enabled{INI_SECTION, "mtp_enabled", false};
-    option::OptionBool m_ftp_enabled{INI_SECTION, "ftp_enabled", false};
+    // usb drives
     option::OptionBool m_hdd_enabled{INI_SECTION, "hdd_enabled", true};
     option::OptionBool m_hdd_write_protect{INI_SECTION, "hdd_write_protect", true};
     // ntfs only, see App::GetHddMountFlags().
@@ -334,11 +287,7 @@ public:
     option::OptionBool m_hdd_ignore_hibernation{INI_SECTION, "hdd_ignore_hibernation", false};
 
     option::OptionBool m_log_enabled{INI_SECTION, "log_enabled", true};
-    option::OptionString m_default_music{INI_SECTION, "default_music", "/config/sphaira/themes/default_music.bfstm"};
-    option::OptionString m_theme_path{INI_SECTION, "theme", DEFAULT_THEME_PATH};
-    option::OptionBool m_theme_music{INI_SECTION, "theme_music", true};
     option::OptionBool m_show_ip_addr{INI_SECTION, "show_ip_addr", true};
-    option::OptionBool m_show_abi_warning{"homebrew", "show_abi_warning", true};
     option::OptionLong m_language{INI_SECTION, "language", 0}; // auto
     option::OptionBool m_progress_boost_mode{INI_SECTION, "progress_boost_mode", true};
     // boost only while compressed content (NCZ) is unpacked; other transfers
@@ -371,58 +320,11 @@ public:
     option::OptionBool m_lower_master_key{INI_SECTION, "lower_master_key", false};
     option::OptionBool m_lower_system_version{INI_SECTION, "lower_system_version", true};
 
-    // dump options
-    option::OptionBool m_dump_fix_filenames{"dump", "fix_filenames", true};
-    option::OptionBool m_dump_app_folder{"dump", "app_folder", true};
-    option::OptionBool m_dump_append_folder_with_xci{"dump", "append_folder_with_xci", true};
-    option::OptionBool m_dump_trim_xci{"dump", "trim_xci", false};
-    option::OptionBool m_dump_label_trim_xci{"dump", "label_trim_xci", false};
-    option::OptionBool m_dump_convert_to_common_ticket{"dump", "convert_to_common_ticket", true};
-    option::OptionLong m_nsz_compress_level{"dump", "nsz_compress_level", 3};
-    option::OptionLong m_nsz_compress_threads{"dump", "nsz_compress_threads", 3};
-    option::OptionBool m_nsz_compress_ldm{"dump", "nsz_compress_ldm", true};
-    option::OptionBool m_nsz_compress_block{"dump", "nsz_compress_block", false};
-    option::OptionLong m_nsz_compress_block_exponent{"dump", "nsz_compress_block_exponent", 6};
-
     // todo: move this into it's own menu
     option::OptionLong m_text_scroll_speed{"accessibility", "text_scroll_speed", 1}; // normal
 
-    // ftp options.
-    option::OptionLong m_ftp_port{"ftp", "port", 5000};
-    option::OptionBool m_ftp_anon{"ftp", "anon", true};
-    option::OptionString m_ftp_user{"ftp", "user", ""};
-    option::OptionString m_ftp_pass{"ftp", "pass", ""};
-    option::OptionBool m_ftp_show_album{"ftp", "show_album", true};
-    option::OptionBool m_ftp_show_ams_contents{"ftp", "show_ams_contents", false};
-    option::OptionBool m_ftp_show_bis_storage{"ftp", "show_bis_storage", false};
-    option::OptionBool m_ftp_show_bis_fs{"ftp", "show_bis_fs", false};
-    option::OptionBool m_ftp_show_content_system{"ftp", "show_content_system", false};
-    option::OptionBool m_ftp_show_content_user{"ftp", "show_content_user", false};
-    option::OptionBool m_ftp_show_content_sd{"ftp", "show_content_sd", false};
-    // option::OptionBool m_ftp_show_content_sd0{"ftp", "show_content_sd0", false};
-    // option::OptionBool m_ftp_show_custom_system{"ftp", "show_custom_system", false};
-    // option::OptionBool m_ftp_show_custom_sd{"ftp", "show_custom_sd", false};
-    option::OptionBool m_ftp_show_games{"ftp", "show_games", true};
-    option::OptionBool m_ftp_show_install{"ftp", "show_install", true};
-    option::OptionBool m_ftp_show_mounts{"ftp", "show_mounts", false};
-    option::OptionBool m_ftp_show_switch{"ftp", "show_switch", false};
-
-    // mtp options.
-    option::OptionLong m_mtp_vid{"mtp", "vid", 0x057e}; // nintendo (hidden from ui)
-    option::OptionLong m_mtp_pid{"mtp", "pid", 0x201d}; // switch (hidden from ui)
-    option::OptionBool m_mtp_allocate_file{"mtp", "allocate_file", true};
-    option::OptionBool m_mtp_show_album{"mtp", "show_album", true};
-    option::OptionBool m_mtp_show_content_sd{"mtp", "show_content_sd", false};
-    option::OptionBool m_mtp_show_content_system{"mtp", "show_content_system", false};
-    option::OptionBool m_mtp_show_content_user{"mtp", "show_content_user", false};
-    option::OptionBool m_mtp_show_games{"mtp", "show_games", true};
-    option::OptionBool m_mtp_show_install{"mtp", "show_install", true};
-    option::OptionBool m_mtp_show_mounts{"mtp", "show_mounts", false};
-    option::OptionBool m_mtp_show_speedtest{"mtp", "show_speedtest", false};
-    option::OptionBool m_album_web_pin{"album", "web_pin", false};
 
     std::shared_ptr<fs::FsNativeSd> m_fs{};
-    audio::SongID m_background_music{};
 
 #ifdef USE_NVJPG
     nj::Decoder m_decoder;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "nanovg.h"
-#include "qrcode.hpp"
 #include "ui/types.hpp"
 #include "ui/scrolling_text.hpp"
 
@@ -50,11 +49,6 @@ void drawCloud(NVGcontext* vg, float cx, float cy, float w, const NVGcolor& c);
 // a game card centred on cx,cy, h tall.
 void drawGameCard(NVGcontext* vg, float cx, float cy, float h, const NVGcolor& c);
 void drawWarning(NVGcontext* vg, float x, float y, float size);
-
-// draws the code, and the quiet zone around it, as large as it can within
-// max_size. returns the size actually drawn, which is a whole number of
-// modules and thus usually smaller than max_size.
-auto drawQrCode(NVGcontext* vg, float x, float y, float max_size, const qr::Matrix& matrix) -> float;
 
 void updateHighlightAnimation();
 void getHighlightAnimation(float* gradientX, float* gradientY, float* color);

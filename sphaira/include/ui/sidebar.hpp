@@ -221,19 +221,6 @@ private:
     const Callback m_callback;
 };
 
-class SidebarEntryFilePicker final : public SidebarEntryTextBase {
-public:
-    explicit SidebarEntryFilePicker(const std::string& title, const std::string& value, const std::vector<std::string>& filter, const std::string& info = "");
-
-    // extension filter.
-    void SetFilter(const std::vector<std::string>& filter) {
-        m_filter = filter;
-    }
-
-private:
-    std::vector<std::string> m_filter{};
-};
-
 class Sidebar : public Widget {
 public:
     enum class Side { LEFT, RIGHT };

@@ -40,6 +40,7 @@ It is a fork of [Sphaira](https://github.com/ITotalJustice/sphaira). The app was
 | `tools/symbolize.sh` | Turns crash addresses into source lines. |
 | `tools/update-keygen.sh` | Creates the update signing key pair. |
 | `build_release.sh` | Builds the Release preset and writes the signed release to `dist/`. |
+| `.github/workflows/ci.yml` | Builds with the pinned container and runs the host tests on pushes to `main` and on pull requests. |
 | `.github/workflows/release.yml` | Builds a draft GitHub release when a `v*` tag is pushed. |
 | `README.md`, `RELEASING.md` | User docs and the release process. Keep both current. |
 | `UPSTREAM.md` | A copy of Sphaira's README. To be replaced, see P3. |
@@ -112,55 +113,49 @@ On the console:
    - **Power loss:** hold the power button partway through an install. Relaunch, check the "Removed … left by an interrupted install" notification, then reinstall.
    - **Updates:** publish the next version and update to it from inside the app.
    - **Crash reports:** make a crash, then check that `crash.txt` symbolizes.
+   - **After the P1 trim:** open every remaining menu, use each file operation once (copy, move, rename, delete, zip, unzip, hash), check the sound effects and the theme, change the USB drive options under **Y → USB drives**, and check that a Sphaira install on the same card keeps its settings. Create a forwarder for a small `.nro`, launch it from the HOME screen, then delete it from System Settings.
 
    Record the results, and file anything that fails as a fix task.
-2. **Clean up CI.** Pushing to `main` currently starts four inherited workflows.
-   - Delete `python-usb-export.yml`, `python-usb-install.yml` and `webusb-build.yml`, which tries to deploy Sphaira's WebUSB site. **Owner** should confirm, unless the PC-side USB tools are kept.
-   - `build_presets.yml` builds against unpinned latest libnx and newlib, while local and release builds use the pinned image. Switch it to `tools/nxloader-build.sh` with `CONTAINER_ENGINE=docker`, the way `release.yml` does.
-   - Add a job that runs `tests/nxloader/run.sh` with cmake, openssl and mbedtls 2.28 available.
+2. **Clean up CI.** Done 2026-11-13.
+   - The inherited `python-usb-export.yml`, `python-usb-install.yml` and `webusb-build.yml` are deleted, and P1 removed the PC-side USB scripts they tested.
+   - `ci.yml` replaces `build_presets.yml`. It builds with `tools/nxloader-build.sh` and runs `tests/nxloader/run.sh` on Ubuntu with GCC and a checksum-verified mbedtls 2.28.10, so the signature test runs. It has not run on GitHub yet: check the first run after pushing.
 3. **Prove the release workflow.** Raise `APP_VERSION`, push a matching `v` tag, and check the draft release:
    - it has exactly four files;
    - the `.sig` matches the `.nro`;
    - publishing it makes it visible to the app's update check once the repo is public.
-4. **Stop sharing folders with Sphaira.** Themes, i18n overrides, network mounts, core-launch files and the custom logo still use `/config/sphaira/…`, and a GitHub cache uses `/switch/sphaira/cache/…`. Find them with `grep -rn "/config/sphaira\|/switch/sphaira" sphaira/source sphaira/include`.
-   - Move each one to `APP_CONFIG_DIR`, or drop the feature as part of P1.
-   - A real Sphaira install on the same card must not be affected.
+4. **Stop sharing folders with Sphaira.** Done 2026-11-13.
+   - Every `/config/sphaira/…` and `/switch/sphaira/cache/…` path now uses `APP_CONFIG_DIR` or `APP_CACHE_DIR` (`/config/swoleloader/cache`). Most of those features were then removed in P1.
+   - Startup no longer deletes Sphaira's themezer cache and old etag file.
+   - Nothing is migrated from `/config/sphaira/`.
+   - `/atmosphere/.sphaira_msp_*` is still used for MSP staging. Each install uses a fresh name and removes it afterward, so it doesn't clash with Sphaira.
 
 ### P1: trim to what SwoleLoader is
 
-Much of Sphaira is still compiled in and reachable. That adds size, network-facing code (curl doesn't verify TLS) and Sphaira branding. Candidates to remove or disable:
+Done 2026-11-13. The owner's scope: SwoleLoader installs packages and updates itself, nothing else. Untested on hardware; see the last item of P0.1.
 
-- appstore, themezer and the GitHub downloader (`appstore.cpp`, `themezer.cpp`, `ghdl.cpp`);
-- Ownfoil (`ownfoil*.cpp`);
-- the album and album-share web server (`album_*.cpp`, `album_server.cpp`);
-- the FTP and MTP servers (`ENABLE_FTPSRV`, `ENABLE_LIBHAZE`);
-- network mounts (the `ENABLE_DEVOPTAB_*` options);
-- the web browser (`web.cpp`), the IR camera (`irs_menu.cpp`), saves (`save_menu.cpp`), USB DVD (`ENABLE_LIBUSBDVD`) and background music.
-
-**Owner** decides the final list. Gamecard install (`gc_menu.cpp`), USB/network install streams, the game menu and the homebrew launcher are judgment calls.
-
-How to go about it:
-- Prefer CMake options or removing sources, and remove each one's menu entry too.
-- Check the `.nro` gets smaller and every remaining menu still opens.
-
-Also, after trimming, clear the remaining Sphaira branding users can see:
-- error names `SphairaError_*`, shown in error boxes;
-- a `"sphaira v"` string;
-- i18n strings that mention Sphaira;
-- the inherited screenshots in `assets/screenshots/`, which show Sphaira features.
+- **Removed:** the appstore, themezer, the GitHub downloader, Ownfoil, the album and its web server, FTP and MTP, NXlink, network and other virtual mounts (HTTP, FTP, SFTP, SMB, NFS, WebDAV, game, save, system partitions, archives), USB DVD, the web browser, the IR camera, the game, save, storage and gamecard menus, dumping and NSZ export, the PC USB and network install streams and their PC scripts in `tools/`, launching homebrew and emulators from the file browser, the background install queue, theme selection and custom themes, background music and the music player, and the `Lite` preset.
+- **Kept:** the file browser with its file operations (copy, move, rename, delete, zip, unzip, hash, edit as text, image viewer), USB drives (FAT32, exFAT, NTFS), the batch installer, MSP installs, the over-the-air updater, language selection, logs, crash reports, the battery guard and screen-off, and the UI sound effects.
+- **Forwarders, restored after the trim:** **X → Install Forwarder** on a `.nro` on the microSD card, with the forwarder editor, its SteamGridDB icon search and file picker, and the `hbl/` loader the forwarder embeds. This is how the fork had it before P1, except that launching emulator cores through the loader stayed out with the rest of the emulator support. The owner also asked about PC installs and dumping, but before P1 nothing in the fork could open those screens, so they were left out rather than wired up untested.
+- **Changed:**
+  - **A** on a package file opens the install review instead of browsing inside the file.
+  - USB drive options moved from **Y → Network → HDD** to **Y → USB drives**.
+  - `build_release.sh` now clears the build's romfs copy first, because the build never deletes files from it.
+- **Branding:**
+  - Error codes show as `AppError_*`, and the error box links to this repository's issues instead of Sphaira's.
+  - Translation entries that no code can look up were pruned, about 850 per language, including every one that mentioned Sphaira.
+- **Size:** the Release `.nro` went from 4.76 MB to 2.5 MB with forwarders back.
+- **Left as is:** the installer core (`yati.cpp`) apart from two calls into removed menus; the unused stream-install path inside it; `Result_*` codes of removed features in `defines.hpp`, kept so the remaining codes keep their numbers; and the inherited screenshots in `assets/screenshots/`, which belong to the P3 rewrite of `UPSTREAM.md`.
 
 ### P2: gaps and improvements
 
 - **Split packages.** FAT32 can't hold files over 4 GB, so large XCI and NSP files on FAT32 drives come split into `game.xc0`, `game.xc1`, … or a `game.xci`/`game.nsp` folder of `00`, `01`, … parts. Neither form is recognized yet. Support them in the scanner (`package_scan.hpp`), the size reader and the install source, with host tests.
-- **Battery guard for single installs.** Installs outside the batch (file browser, USB stream) don't use the battery guard yet.
 - **Measure the compressed-only boost.** Install the same plain NSP with **Boost only for compressed games** on and off, and compare the times in `last-batch.txt`. Change the default if boosting is clearly faster.
 - **Power cut in the registering window.** In the second or two after content is registered and before the application record is pushed, a power cut can leave a game without its icon. Reinstalling fixes it. Consider detecting it, or document it.
-- **Theme music.** Background music keeps playing during installs and drains the battery. Consider pausing it while the screen is off.
 
 ### P3: docs, legal, release
 
 - **README for users.** Rewrite it around install steps, controls, troubleshooting and where the logs are. Move developer detail to a separate document.
-- **Upstream credit.** Replace `UPSTREAM.md` with a short credit to Sphaira and its author, plus a dated summary of what this fork changed. GPL-3.0 section 5(a) asks for prominent notice of modifications.
+- **Upstream credit.** Replace `UPSTREAM.md` with a short credit to Sphaira and its author, plus a dated summary of what this fork changed. GPL-3.0 section 5(a) asks for prominent notice of modifications. Delete `assets/screenshots/` with it, since those show Sphaira features.
 - **Bug-report template.** Add `.github/ISSUE_TEMPLATE/bug.yml` asking for:
   - CFW and firmware versions, and sysMMC or emuMMC;
   - drive type and format;

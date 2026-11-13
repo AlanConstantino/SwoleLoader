@@ -1,5 +1,4 @@
 #include "ui/menus/filebrowser.hpp"
-#include "ui/menus/homebrew.hpp"
 #include "ui/menus/file_viewer.hpp"
 #include "ui/menus/image_viewer.hpp"
 
@@ -7,24 +6,20 @@
 #include "ui/option_box.hpp"
 #include "ui/popup_list.hpp"
 #include "ui/progress_box.hpp"
-#include "ui/install_queue.hpp"
 #include "ui/error_box.hpp"
-#include "ui/music_player.hpp"
 #include "ui/forwarder_editor.hpp"
 
 #include "utils/utils.hpp"
-#include "utils/devoptab.hpp"
 
 #include "log.hpp"
 #include "app.hpp"
+#include "nro.hpp"
 #include "ui/nvg_util.hpp"
 #include "fs.hpp"
-#include "nro.hpp"
 #include "nacp_compat.hpp"
 #include "defines.hpp"
 #include "image.hpp"
 #include "download.hpp"
-#include "owo.hpp"
 #include "swkbd.hpp"
 #include "i18n.hpp"
 #include "hasher.hpp"
@@ -53,24 +48,17 @@
 #include <ranges>
 #include <charconv>
 
-#ifdef ENABLE_LIBUSBDVD
-#include <usbdvd.h>
-#endif // ENABLE_LIBUSBDVD
-
 namespace sphaira::ui::menu::filebrowser {
 namespace {
-
-using RomDatabaseIndexs = std::vector<size_t>;
 
 std::atomic_bool g_change_signalled{};
 
 constexpr FsEntry FS_ENTRY_DEFAULT{
-    "microSD card", "/", FsType::Sd, FsEntryFlag_Assoc | FsEntryFlag_IsSd,
+    "microSD card", "/", FsType::Sd, FsEntryFlag_IsSd,
 };
 
 constexpr FsEntry FS_ENTRIES[]{
     FS_ENTRY_DEFAULT,
-    { "Album", "/", FsType::ImageSd},
 };
 
 constexpr std::string_view AUDIO_EXTENSIONS[] = {
@@ -87,15 +75,6 @@ constexpr std::string_view IMAGE_EXTENSIONS[] = {
 constexpr std::string_view INSTALL_EXTENSIONS[] = {
     "nsp", "xci", "nsz", "xcz", "msp",
 };
-constexpr std::string_view NSP_EXTENSIONS[] = {
-    "nsp", "nsz",
-};
-constexpr std::string_view XCI_EXTENSIONS[] = {
-    "xci", "xcz",
-};
-constexpr std::string_view NCA_EXTENSIONS[] = {
-    "nca", "ncz",
-};
 // these are files that are already compressed or encrypted and should
 // be stored raw in a zip file.
 constexpr std::string_view COMPRESSED_EXTENSIONS[] = {
@@ -104,90 +83,6 @@ constexpr std::string_view COMPRESSED_EXTENSIONS[] = {
 constexpr std::string_view ZIP_EXTENSIONS[] = {
     "zip",
 };
-// supported music playback extensions.
-constexpr std::string_view MUSIC_EXTENSIONS[] = {
-    "bfstm", "bfwav", "wav", "mp3", "ogg", "flac", "adf",
-};
-// supported theme music playback extensions.
-constexpr std::span THEME_MUSIC_EXTENSIONS = MUSIC_EXTENSIONS;
-
-constexpr std::string_view CDDVD_EXTENSIONS[] = {
-    "iso", "cue",
-};
-
-struct RomDatabaseEntry {
-    // uses the naming scheme from retropie.
-    std::string_view folder{};
-    // uses the naming scheme from Retroarch.
-    std::string_view database{};
-    // custom alias, to make everyone else happy.
-    std::array<std::string_view, 4> alias{};
-
-    // compares against all of the above strings.
-    auto IsDatabase(std::string_view name) const {
-        if (IsSamePath(name, folder) || IsSamePath(name, database)) {
-            return true;
-        }
-
-        for (const auto& str : alias) {
-            if (!str.empty() && IsSamePath(name, str)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-};
-
-constexpr RomDatabaseEntry PATHS[]{
-    { "3do", "The 3DO Company - 3DO"},
-    { "atari800", "Atari - 8-bit"},
-    { "atari2600", "Atari - 2600"},
-    { "atari5200", "Atari - 5200"},
-    { "atari7800", "Atari - 7800"},
-    { "atarilynx", "Atari - Lynx"},
-    { "atarijaguar", "Atari - Jaguar"},
-    { "atarijaguarcd", ""},
-    { "supergrafx", "NEC - PC Engine SuperGrafx", { "pcengine" } },
-    { "n3ds", "Nintendo - Nintendo 3DS"},
-    { "n64", "Nintendo - Nintendo 64"},
-    { "nds", "Nintendo - Nintendo DS"},
-    { "fds", "Nintendo - Family Computer Disk System", { "Nintendo - Famicom Disk System" } },
-    { "nes", "Nintendo - Nintendo Entertainment System"},
-    { "pokemini", "Nintendo - Pokemon Mini"},
-    { "gb", "Nintendo - Game Boy"},
-    { "gba", "Nintendo - Game Boy Advance"},
-    { "gbc", "Nintendo - Game Boy Color"},
-    { "virtualboy", "Nintendo - Virtual Boy"},
-    { "gameandwatch", ""},
-    { "sega32x", "Sega - 32X"},
-    { "segacd", "Sega - Mega CD - Sega CD"},
-    { "dreamcast", "Sega - Dreamcast"},
-    { "gamegear", "Sega - Game Gear"},
-    { "genesis", "Sega - Mega Drive - Genesis"},
-    { "mastersystem", "Sega - Master System - Mark III"},
-    { "megadrive", "Sega - Mega Drive - Genesis"},
-    { "saturn", "Sega - Saturn"},
-    { "sg-1000", "Sega - SG-1000"},
-    { "psx", "Sony - PlayStation"},
-    { "psp", "Sony - PlayStation Portable"},
-    { "snes", "Nintendo - Super Nintendo Entertainment System"},
-    { "pico8", "Sega - PICO"},
-    { "wonderswan", "Bandai - WonderSwan"},
-    { "wonderswancolor", "Bandai - WonderSwan Color"},
-
-    { "mame", "MAME 2000", { "MAME", "mame-libretro", } },
-    { "mame", "MAME 2003", { "MAME", "mame-libretro", } },
-    { "mame", "MAME 2003-Plus", { "MAME", "mame-libretro", } },
-    { "fbneo", "FBNeo - Arcade Games" },
-
-    { "neogeo", "SNK - Neo Geo" },
-    { "neogeo", "SNK - Neo Geo Pocket" },
-    { "neogeo", "SNK - Neo Geo Pocket Color" },
-    { "neogeo", "SNK - Neo Geo CD" },
-};
-
-constexpr fs::FsPath DAYBREAK_PATH{"/switch/daybreak.nro"};
 constexpr std::string_view ATMOSPHERE_CONTENTS_PATH{"/atmosphere/contents"};
 
 auto IsAtmosphereContentsPath(std::string_view path) -> bool {
@@ -207,155 +102,6 @@ auto ParseApplicationId(std::string_view name, u64& application_id) -> bool {
     const auto end = name.data() + name.size();
     const auto result = std::from_chars(name.data(), end, application_id, 16);
     return result.ec == std::errc{} && result.ptr == end && application_id != 0;
-}
-
-// tries to find database path using folder name
-// names are taken from retropie
-// retroarch database names can also be used
-auto GetRomDatabaseFromPath(std::string_view path) -> RomDatabaseIndexs {
-    if (path.length() <= 1) {
-        return {};
-    }
-
-    // this won't fail :)
-    RomDatabaseIndexs indexs;
-    const auto db_name = path.substr(path.find_last_of('/') + 1);
-    // log_write("new path: %s\n", db_name.c_str());
-
-    for (int i = 0; i < std::size(PATHS); i++) {
-        const auto& p = PATHS[i];
-        if (p.IsDatabase(db_name)) {
-            log_write("found it :) %.*s\n", (int)p.database.length(), p.database.data());
-            indexs.emplace_back(i);
-        }
-    }
-
-    // if we failed, try again but with the folder about
-    // "/roms/psx/scooby-doo/scooby-doo.bin", this will check psx
-    if (indexs.empty()) {
-        const auto last_off = path.substr(0, path.find_last_of('/'));
-        if (const auto off = last_off.find_last_of('/'); off != std::string_view::npos) {
-            const auto db_name2 = last_off.substr(off + 1);
-            // printf("got db: %s\n", db_name2.c_str());
-            for (int i = 0; i < std::size(PATHS); i++) {
-                const auto& p = PATHS[i];
-                if (p.IsDatabase(db_name2)) {
-                    log_write("found it :) %.*s\n", (int)p.database.length(), p.database.data());
-                    indexs.emplace_back(i);
-                }
-            }
-        }
-    }
-
-    return indexs;
-}
-
-//
-auto GetRomIcon(std::string filename, const RomDatabaseIndexs& db_indexs, const NroEntry& nro) {
-    // if no db entries, use nro icon
-    if (db_indexs.empty()) {
-        log_write("using nro image\n");
-        return nro_get_icon(nro.path, nro.icon_size, nro.icon_offset);
-    }
-
-    // fix path to be url friendly
-    constexpr std::string_view bad_chars{"&*/:`<>?\\|\""};
-    for (auto& c : filename) {
-        for (auto bad_c : bad_chars) {
-            if (c == bad_c) {
-                c = '_';
-                break;
-            }
-        }
-    }
-
-    #define RA_BOXART_NAME "/Named_Boxarts/"
-    #define RA_THUMBNAIL_PATH "/retroarch/thumbnails/"
-    #define RA_BOXART_EXT ".png"
-
-    for (auto db_idx : db_indexs) {
-        const auto system_name = std::string{PATHS[db_idx].database.data(), PATHS[db_idx].database.length()};//GetDatabaseFromExt(database, extension);
-        auto system_name_gh = system_name + "/master";
-        for (auto& c : system_name_gh) {
-            if (c == ' ') {
-                c = '_';
-            }
-        }
-
-        const std::string thumbnail_path = system_name + RA_BOXART_NAME + filename + RA_BOXART_EXT;
-        const std::string ra_thumbnail_path = RA_THUMBNAIL_PATH + thumbnail_path;
-
-        log_write("starting image convert on: %s\n", ra_thumbnail_path.c_str());
-
-        // try and find icon locally
-        std::vector<u8> image_file;
-        if (R_SUCCEEDED(fs::FsNativeSd().read_entire_file(ra_thumbnail_path, image_file))) {
-            return image_file;
-        }
-    }
-
-    // use nro icon
-    log_write("using nro image\n");
-    return nro_get_icon(nro.path, nro.icon_size, nro.icon_offset);
-}
-
-void ShowForwarderEditor(const FileAssocEntry& assoc, const RomDatabaseIndexs& db_indexs, const FileEntry& entry, const fs::FsPath& arg_path) {
-    NroEntry nro{};
-    NacpStruct nacp{};
-    log_write("parsing nro\n");
-    if (R_FAILED(nro_parse(assoc.path, nro)) || R_FAILED(nro_get_nacp(assoc.path, nacp))) {
-        App::Notify("Failed to parse nro"_i18n);
-        return;
-    }
-
-    log_write("got nro data\n");
-    auto file_name = assoc.use_base_name ? entry.GetName() : entry.GetInternalName();
-
-    if (auto pos = file_name.find_last_of('.'); pos != std::string::npos) {
-        log_write("got filename\n");
-        file_name = file_name.substr(0, pos);
-        log_write("got filename2: %s\n\n", file_name.c_str());
-    }
-
-    forwarder::Config editor{};
-    editor.values.title = nro.nacp.lang.name + std::string{" | "} + file_name;
-    editor.values.author = NacpLanguageEntries(nacp)[0].author;
-    editor.values.version = nacp.display_version;
-    editor.values.icon = GetRomIcon(file_name, db_indexs, nro);
-    editor.icon_source = db_indexs.empty() ? "NRO Icon"_i18n : "ROM Artwork"_i18n;
-    editor.steam_query = file_name;
-    editor.show_author = true;
-    editor.show_version = true;
-    editor.on_create = [assoc, arg_path, nacp, has_rom_logo = !db_indexs.empty()](const forwarder::Values& values) mutable {
-        OwoConfig config{};
-        config.nro_path = assoc.path.toString();
-        config.args = nro_add_arg_file(arg_path);
-        config.nacp = nacp;
-        config.name = values.title;
-        config.author = values.author;
-        config.icon = values.icon;
-        config.profile_selection = values.profile_selection;
-        config.address_space = values.address_space;
-        config.core_mode = values.core_mode;
-        config.screenshot = values.screenshot;
-        config.video_capture = values.video_capture;
-        config.svc_debug_mode = values.svc_debug_mode;
-        std::snprintf(config.nacp.display_version, sizeof(config.nacp.display_version), "%s", values.version.c_str());
-
-        // if this is a rom, load intro logo.
-        if (has_rom_logo) {
-            fs::FsNativeSd().read_entire_file("/config/sphaira/logo/rom/NintendoLogo.png", config.logo);
-            fs::FsNativeSd().read_entire_file("/config/sphaira/logo/rom/StartupMovie.gif", config.gif);
-        }
-
-        // try and install.
-        if (R_FAILED(App::Install(config))) {
-            App::Notify("Failed to install forwarder"_i18n);
-            return false;
-        }
-        return true;
-    };
-    forwarder::Show(std::move(editor));
 }
 
 } // namespace
@@ -682,119 +428,15 @@ void FsView::SetSide(ViewSide side) {
 
 void FsView::OnClick() {
     if (m_entries_current.empty()) return;
-    if (m_menu->m_options & FsOption_LoadAssoc) {
-        m_is_update_folder = R_SUCCEEDED(CheckIfUpdateFolder());
-    }
-    if (IsSd() && !m_entries_current.empty() && !GetEntry().checked_internal_extension && IsSamePath(GetEntry().GetExtension(), "zip")) {
-        GetEntry().checked_internal_extension = true;
-
-        TimeStamp ts;
-        fs::FsPath filename_inzip{};
-        if (R_SUCCEEDED(mz::PeekFirstFileName(GetFs(), GetNewPathCurrent(), filename_inzip))) {
-            if (auto ext = std::strrchr(filename_inzip, '.')) {
-                GetEntry().internal_name = filename_inzip.toString();
-                GetEntry().internal_extension = ext+1;
-            }
-            log_write("\tzip, time taken: %.2fs %zums\n", ts.GetSecondsD(), ts.GetMs());
-        }
-    }
-
-    if (IsSd() && m_is_update_folder && m_daybreak_path.has_value()) {
-        App::Push<OptionBox>("Open with DayBreak?"_i18n, "No"_i18n, "Yes"_i18n, 1, [this](auto op_index){
-            if (op_index && *op_index) {
-                // daybreak uses native fs so do not use nro_add_arg_file
-                // otherwise it'll fail to open the folder...
-                nro_launch(m_daybreak_path.value(), nro_add_arg(m_path));
-            }
-        });
-        return;
-    }
 
     const auto& entry = GetEntry();
 
     if (entry.type == FsDirEntryType_Dir) {
         Scan(GetNewPathCurrent());
-    } else {
-        // special case for nro
-        if (IsSd() && IsSamePath(entry.GetExtension(), "nro")) {
-            App::Push<OptionBox>(i18n::Reorder("Launch ", entry.GetName()) + '?',
-                "No"_i18n, "Launch"_i18n, 1, [this](auto op_index){
-                    if (op_index && *op_index) {
-                        nro_launch(GetNewPathCurrent());
-                    }
-                });
-        } else if (IsExtension(entry.GetExtension(), NCA_EXTENSIONS)) {
-            MountFileFs(devoptab::MountNca, devoptab::UmountNeworkDevice);
-        } else if (IsExtension(entry.GetExtension(), NSP_EXTENSIONS)) {
-            MountFileFs(devoptab::MountNsp, devoptab::UmountNeworkDevice);
-        } else if (IsExtension(entry.GetExtension(), XCI_EXTENSIONS)) {
-            MountFileFs(devoptab::MountXci, devoptab::UmountNeworkDevice);
-        } else if (IsExtension(entry.GetExtension(), "zip")) {
-            MountFileFs(devoptab::MountZip, devoptab::UmountNeworkDevice);
-        } else if (IsExtension(entry.GetExtension(), "bfsar")) {
-            MountFileFs(devoptab::MountBfsar, devoptab::UmountNeworkDevice);
-        } else if (IsExtension(entry.GetExtension(), MUSIC_EXTENSIONS)) {
-            App::Push<music::Menu>(GetFs(), GetNewPathCurrent());
-        } else if (IsExtension(entry.GetExtension(), IMAGE_EXTENSIONS)) {
-            App::Push<imageview::Menu>(GetFs(), GetNewPathCurrent());
-        }
-#ifdef ENABLE_LIBUSBDVD
-        else if (IsExtension(entry.GetExtension(), CDDVD_EXTENSIONS)) {
-            std::shared_ptr<CUSBDVD> usbdvd;
-
-            if (entry.GetExtension() == "cue") {
-                const auto cue_path = GetNewPathCurrent();
-                fs::FsPath bin_path = cue_path;
-                std::strcpy(std::strstr(bin_path, ".cue"), ".bin");
-                if (m_fs->FileExists(bin_path)) {
-                    usbdvd = std::make_shared<CUSBDVD>(cue_path.toString(), bin_path.toString());
-                }
-            } else {
-                usbdvd = std::make_shared<CUSBDVD>(GetNewPathCurrent().toString());
-            }
-
-            if (usbdvd && usbdvd->usbdvd_ctx.fs.mounted) {
-                auto fs = std::make_shared<FsStdioWrapper>(usbdvd->usbdvd_ctx.fs.mountpoint, [usbdvd](){
-                    // dummy func to keep shared_ptr alive until fs is closed.
-                });
-
-                MountFsHelper(fs, usbdvd->usbdvd_ctx.fs.disc_fstype);
-                log_write("[USBDVD] mounted\n");
-            } else {
-                log_write("[USBDVD] failed to mount\n");
-            }
-        }
-#endif // ENABLE_LIBUSBDVD
-        else if (IsExtension(entry.GetExtension(), INSTALL_EXTENSIONS)) {
-            InstallFiles();
-        } else if (IsSd()) {
-            const auto assoc_list = m_menu->FindFileAssocFor();
-            if (!assoc_list.empty()) {
-                // for (auto&e : assoc_list) {
-                //     log_write("assoc got: %s\n", e.path.c_str());
-                // }
-
-                PopupList::Items items;
-                for (const auto&p : assoc_list) {
-                    items.emplace_back(p.name);
-                }
-
-                const auto title = "Launch option for: "_i18n + GetEntry().name;
-                App::Push<PopupList>(
-                    title, items, [this, assoc_list](auto op_index){
-                        if (op_index) {
-                            log_write("selected: %s\n", assoc_list[*op_index].name.c_str());
-                            nro_launch(assoc_list[*op_index].path, nro_add_arg_file(GetNewPathCurrent()));
-                        } else {
-                            log_write("pressed B to skip launch...\n");
-                        }
-                    }
-
-                );
-            } else {
-                log_write("assoc list is empty\n");
-            }
-        }
+    } else if (IsExtension(entry.GetExtension(), INSTALL_EXTENSIONS)) {
+        InstallFiles();
+    } else if (IsExtension(entry.GetExtension(), IMAGE_EXTENSIONS)) {
+        App::Push<imageview::Menu>(GetFs(), GetNewPathCurrent());
     }
 }
 
@@ -809,34 +451,41 @@ void FsView::SetIndex(s64 index) {
 }
 
 void FsView::InstallForwarder() {
-    if (IsSamePath(GetEntry().GetExtension(), "nro")) {
-        const auto path = GetNewPathCurrent();
-        homebrew::Menu::ShowForwarderForm(path);
+    const auto path = GetNewPathCurrent();
+    NroEntry nro{};
+    NacpStruct nacp{};
+    if (R_FAILED(nro_parse(path, nro)) || R_FAILED(nro_get_nacp(path, nacp))) {
+        App::Notify("Failed to parse nro"_i18n);
         return;
     }
 
-    const auto assoc_list = m_menu->FindFileAssocFor();
-    if (assoc_list.empty()) {
-        log_write("failed to find assoc for: %s ext: %s\n", GetEntry().name, GetEntry().GetExtension().c_str());
-        return;
-    }
+    forwarder::Config editor{};
+    editor.values.title = nro.GetName();
+    editor.values.author = nro.GetAuthor();
+    editor.values.version = nacp.display_version;
+    editor.values.icon = nro_get_icon(path, nro.icon_size, nro.icon_offset);
+    editor.icon_source = "NRO Icon"_i18n;
+    editor.on_create = [path, nacp](const forwarder::Values& values) mutable {
+        OwoConfig config{};
+        config.nro_path = path.toString();
+        config.name = values.title;
+        config.author = values.author;
+        config.nacp = nacp;
+        config.icon = values.icon;
+        config.profile_selection = values.profile_selection;
+        config.address_space = values.address_space;
+        config.core_mode = values.core_mode;
+        config.screenshot = values.screenshot;
+        config.video_capture = values.video_capture;
+        config.svc_debug_mode = values.svc_debug_mode;
 
-    PopupList::Items items;
-    for (const auto&p : assoc_list) {
-        items.emplace_back(p.name);
-    }
-
-    const auto title = std::string{"Select launcher for: "_i18n} + GetEntry().name;
-    App::Push<PopupList>(
-        title, items, [this, assoc_list](auto op_index){
-            if (op_index) {
-                const auto assoc = assoc_list[*op_index];
-                ShowForwarderEditor(assoc, GetRomDatabaseFromPath(m_path), GetEntry(), GetNewPathCurrent());
-            } else {
-                log_write("pressed B to skip launch...\n");
-            }
+        if (R_FAILED(App::Install(config))) {
+            App::Notify("Failed to install forwarder"_i18n);
+            return false;
         }
-    );
+        return true;
+    };
+    forwarder::Show(std::move(editor));
 }
 
 void FsView::InstallFiles() {
@@ -935,7 +584,7 @@ void FsView::ZipFiles(fs::FsPath zip_out) {
 
         auto zfile = zipOpen2_64(zip_out, APPEND_STATUS_CREATE, nullptr, &file_func);
         R_UNLESS(zfile, Result_ZipOpen2_64);
-        ON_SCOPE_EXIT(zipClose(zfile, "sphaira v" APP_DISPLAY_VERSION));
+        ON_SCOPE_EXIT(zipClose(zfile, APP_NAME " v" APP_DISPLAY_VERSION));
 
         const auto zip_add = [&](const fs::FsPath& file_path) -> Result {
             // the file name needs to be relative to the current directory.
@@ -1012,7 +661,6 @@ auto FsView::Scan(fs::FsPath new_path, bool is_walk_up) -> Result {
     g_change_signalled = false;
     m_path = new_path;
     m_selected_count = 0;
-    m_is_update_folder = false;
     m_menu->SetTitleSubHeading(m_path);
     StartLoad(false);
     R_SUCCEED();
@@ -1342,46 +990,6 @@ void FsView::OnPasteCallback() {
 
 void FsView::OnRenameCallback() {
 
-}
-
-auto FsView::CheckIfUpdateFolder() -> Result {
-    R_UNLESS(IsSd(), Result_FileBrowserDirNotDaybreak);
-    R_UNLESS(m_fs->IsNative(), Result_FileBrowserDirNotDaybreak);
-
-    // check if we have already tried to find daybreak
-    if (m_daybreak_path.has_value() && m_daybreak_path.value().empty()) {
-        return FsError_FileNotFound;
-    }
-
-    // check that we have daybreak installed
-    if (!m_daybreak_path.has_value()) {
-        auto daybreak_path = DAYBREAK_PATH;
-        if (!m_fs->FileExists(DAYBREAK_PATH)) {
-            if (auto e = nro_find(homebrew::GetNroEntries(), "Daybreak", "Atmosphere-NX", {}); e.has_value()) {
-                daybreak_path = e.value().path;
-            } else {
-                log_write("failed to find daybreak\n");
-                m_daybreak_path = "";
-                return FsError_FileNotFound;
-            }
-        }
-        m_daybreak_path = daybreak_path;
-        log_write("found daybreak in: %s\n", m_daybreak_path.value().s);
-    }
-
-    // check that we have enough ncas and not too many
-    R_UNLESS(m_entries.size() > 150 && m_entries.size() < 300, Result_FileBrowserDirNotDaybreak);
-
-    // check that all entries end in .nca
-    for (auto& e : m_entries) {
-        // check that we are at the bottom level
-        R_UNLESS(e.type == FsDirEntryType_File, Result_FileBrowserDirNotDaybreak);
-
-        const auto ext = std::strrchr(e.name, '.');
-        R_UNLESS(ext && IsSamePath(ext, ".nca"), Result_FileBrowserDirNotDaybreak);
-    }
-
-    R_SUCCEED();
 }
 
 auto FsView::get_collection(fs::Fs* fs, const fs::FsPath& path, const fs::FsPath& parent_name, FsDirCollection& out, bool inc_file, bool inc_dir, bool inc_size) -> Result {
@@ -1728,8 +1336,8 @@ void FsView::DisplayOptions() {
         }
 
         if (IsSd() && m_entries_current.size() && !m_selected_count) {
-            if (GetEntry().IsFile() && (IsSamePath(GetEntry().GetExtension(), "nro") || !m_menu->FindFileAssocFor().empty())) {
-                auto entry = options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){;
+            if (GetEntry().IsFile() && IsSamePath(GetEntry().GetExtension(), "nro")) {
+                auto entry = options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){
                     InstallForwarder();
                 });
                 entry->Depends(App::GetInstallEnable, i18n::get(App::INSTALL_DEPENDS_STR), App::ShowEnableInstallPrompt);
@@ -1793,38 +1401,6 @@ void FsView::DisplayAdvancedOptions() {
     auto options = std::make_unique<Sidebar>("Advanced Options"_i18n, Sidebar::Side::RIGHT);
     ON_SCOPE_EXIT(App::Push(std::move(options)));
 
-    if (IsSd() && !m_selected_count && !m_entries_current.empty() && GetEntry().IsDir()) {
-        const auto path = GetNewPathCurrent();
-        if (path != "/" && path != "/switch") {
-            if (homebrew::IsSearchPath(path)) {
-                options->Add<SidebarEntryCallback>("Delete Homebrew Search Paths"_i18n, [path](){
-                    const auto prompt = "Remove Homebrew Search Path?"_i18n + "\n\n" + path.toString();
-                    App::Push<OptionBox>(prompt, "Back"_i18n, "Delete"_i18n, 0, [path](auto index){
-                        if (!index || *index != 1) {
-                            return;
-                        }
-
-                        if (homebrew::RemoveSearchPath(path)) {
-                            App::PopToMenu();
-                            App::Notify("Homebrew search path removed."_i18n);
-                        } else {
-                            App::Notify("Failed to remove Homebrew search path"_i18n);
-                        }
-                    });
-                });
-            } else {
-                options->Add<SidebarEntryCallback>("Add to Homebrew Search Paths"_i18n, [path](){
-                    if (homebrew::AddSearchPath(path)) {
-                        App::PopToMenu();
-                        App::Notify("Homebrew search path added."_i18n);
-                    } else {
-                        App::Notify("Failed to add Homebrew search path"_i18n);
-                    }
-                });
-            }
-        }
-    }
-
     if (!m_fs_entry.IsReadOnly()) {
         options->Add<SidebarEntryCallback>("Create File"_i18n, [this](){
             std::string out;
@@ -1878,13 +1454,6 @@ void FsView::DisplayAdvancedOptions() {
         });
     }
 
-    if (m_entries_current.size() && !m_selected_count && IsExtension(GetEntry().GetExtension(), THEME_MUSIC_EXTENSIONS)) {
-        options->Add<SidebarEntryCallback>("Set as background music"_i18n, [this](){
-            const auto rc = App::SetDefaultBackgroundMusic(GetFs(), GetNewPathCurrent());
-            App::PushErrorBox(rc, "Failed to set default music path"_i18n);
-        });
-    }
-
     if (m_entries_current.size() && !m_selected_count && GetEntry().IsFile()) {
         options->Add<SidebarEntryCallback>("Hash"_i18n, [this](){
             auto options = std::make_unique<Sidebar>("Hash Options"_i18n, Sidebar::Side::RIGHT);
@@ -1914,20 +1483,6 @@ void FsView::DisplayAdvancedOptions() {
     });
 }
 
-void FsView::MountFileFs(const MountFsFunc& mount_func, const UmountFsFunc& umount_func) {
-    fs::FsPath mount;
-    const auto rc = mount_func(GetFs(), GetNewPathCurrent(), mount);
-    App::PushErrorBox(rc, "Failed to mount FS."_i18n);
-
-    if (R_SUCCEEDED(rc)) {
-        auto fs = std::make_shared<FsStdioWrapper>(mount, [mount, umount_func](){
-            umount_func(mount);
-        });
-
-        MountFsHelper(fs, GetEntry().GetName());
-    }
-}
-
 Base::Base(u32 flags, u32 options)
 : MenuBase{"FileBrowser"_i18n, flags}
 , m_options{options} {
@@ -1942,7 +1497,8 @@ Base::Base(const std::shared_ptr<fs::Fs>& fs, const FsEntry& fs_entry, const fs:
 
 void Base::Update(Controller* controller, TouchInfo* touch) {
     nxloader_ui::SelectionSizer::PollRetired();
-    if (!ui::InstallQueue::Get().IsBusy()) { m_cart->Resume(); m_cart->Poll(); }
+    m_cart->Resume();
+    m_cart->Poll();
     if (m_review_after_selection && !m_cart->Queued()) {
         m_review_after_selection = false;
         nxloader_ui::ScanAndInstall(m_cart);
@@ -2015,12 +1571,6 @@ void Base::OnFocusGained() {
     } else {
         view->OnFocusGained();
     }
-
-    if (!m_loaded_assoc_entries) {
-        m_loaded_assoc_entries = true;
-        log_write("loading assoc entries\n");
-        LoadAssocEntries();
-    }
 }
 
 auto Base::PauseSizeEstimates() -> std::vector<std::shared_ptr<nxloader_ui::SelectionSizer>> {
@@ -2034,164 +1584,6 @@ void Base::OnFocusLost() {
 
 void Base::OnClick(FsView* view, const FsEntry& fs_entry, const FileEntry& entry, const fs::FsPath& path) {
     view->OnClick();
-}
-
-auto Base::FindFileAssocFor() -> std::vector<FileAssocEntry> {
-    // only support roms in correctly named folders, sorry!
-    const auto db_indexs = GetRomDatabaseFromPath(view->m_path);
-    const auto& entry = view->GetEntry();
-    const auto extension = entry.GetExtension();
-    const auto internal_extension = entry.GetInternalExtension();
-    if (extension.empty() && internal_extension.empty()) {
-        // log_write("failed to get extension for db: %s path: %s\n", database_entry.c_str(), m_path);
-        return {};
-    }
-
-    std::vector<FileAssocEntry> out_entries;
-    for (const auto& assoc : m_assoc_entries) {
-        if (!assoc.IsExtension(extension, internal_extension)) {
-            continue;
-        }
-
-        if (assoc.database.empty()) {
-            log_write("found global ext: %s\n", assoc.path.s);
-            out_entries.emplace_back(assoc);
-            continue;
-        }
-
-        bool database_matches{};
-        for (const auto& assoc_db : assoc.database) {
-            for (const auto db_idx : db_indexs) {
-                if (PATHS[db_idx].IsDatabase(assoc_db)) {
-                    database_matches = true;
-                    break;
-                }
-            }
-            if (database_matches) {
-                break;
-            }
-        }
-
-        if (database_matches) {
-            out_entries.emplace_back(assoc);
-        }
-    }
-
-    return out_entries;
-}
-
-void Base::LoadAssocEntriesPath(const fs::FsPath& path) {
-    auto dir = opendir(path);
-    if (!dir) {
-        return;
-    }
-    ON_SCOPE_EXIT(closedir(dir));
-
-    while (auto d = readdir(dir)) {
-        if (d->d_name[0] == '.') {
-            continue;
-        }
-
-        if (d->d_type != DT_REG) {
-            continue;
-        }
-
-        const auto ext = std::strrchr(d->d_name, '.');
-        if (!ext || strcasecmp(ext, ".ini")) {
-            continue;
-        }
-
-        const auto full_path = GetNewPath(path, d->d_name);
-        FileAssocEntry assoc{};
-
-        ini_browse([](const mTCHAR *Section, const mTCHAR *Key, const mTCHAR *Value, void *UserData) {
-            auto assoc = static_cast<FileAssocEntry*>(UserData);
-            if (!std::strcmp(Key, "path")) {
-                assoc->path = Value;
-            } else if (!std::strcmp(Key, "supported_extensions")) {
-                for (const auto& p : std::views::split(std::string_view{Value}, '|')) {
-                    if (p.empty()) {
-                        continue;
-                    }
-                    assoc->ext.emplace_back(p.data(), p.size());
-                }
-            } else if (!std::strcmp(Key, "database")) {
-                for (const auto& p : std::views::split(std::string_view{Value}, '|')) {
-                    if (p.empty()) {
-                        continue;
-                    }
-                    assoc->database.emplace_back(p.data(), p.size());
-                }
-            } else if (!std::strcmp(Key, "use_base_name")) {
-                if (!std::strcmp(Value, "true") || !std::strcmp(Value, "1")) {
-                    assoc->use_base_name = true;
-                }
-            }
-            return 1;
-        }, &assoc, full_path);
-
-        if (assoc.ext.empty()) {
-            continue;
-        }
-
-        assoc.name.assign(d->d_name, ext - d->d_name);
-
-        // if path isn't empty, check if the file exists
-        bool file_exists{};
-        if (!assoc.path.empty()) {
-            file_exists = view->m_fs->FileExists(assoc.path);
-        } else {
-            auto nros = homebrew::GetNroEntries();
-            if (nros.empty()) {
-                if (m_nro_entries.empty()) {
-                    nro_scan("/switch", m_nro_entries);
-                    nros = m_nro_entries;
-                }
-            }
-
-            const auto nro_name = assoc.name + ".nro";
-            for (const auto& nro : nros) {
-                const auto len = std::strlen(nro.path);
-                if (len < nro_name.length()) {
-                    continue;
-                }
-                if (!strcasecmp(nro.path + len - nro_name.length(), nro_name.c_str())) {
-                    assoc.path = nro.path;
-                    file_exists = true;
-                    break;
-                }
-            }
-        }
-
-        // after all of that, the file doesn't exist :(
-        if (!file_exists) {
-            // log_write("removing: %s\n", assoc.name.c_str());
-            continue;
-        }
-
-        // log_write("\tpath: %s\n", assoc.path.s);
-        // log_write("\tname: %s\n", assoc.name.c_str());
-        // for (const auto& ext : assoc.ext) {
-        //     log_write("\t\text: %s\n", ext.c_str());
-        // }
-        // for (const auto& db : assoc.database) {
-        //     log_write("\t\tdb: %s\n", db.c_str());
-        // }
-
-        m_assoc_entries.emplace_back(assoc);
-    }
-}
-
-void Base::LoadAssocEntries() {
-    if (m_options & FsOption_LoadAssoc) {
-        // load from romfs first
-        if (R_SUCCEEDED(romfsInit())) {
-            LoadAssocEntriesPath("romfs:/assoc/");
-            romfsExit();
-        }
-        // then load custom entries
-        LoadAssocEntriesPath("/config/sphaira/assoc/");
-    }
 }
 
 void Base::UpdateSubheading() {
@@ -2292,10 +1684,6 @@ auto Base::CreateFs(const FsEntry& fs_entry) -> std::shared_ptr<fs::Fs> {
     switch (fs_entry.type) {
         case FsType::Sd:
             return std::make_shared<fs::FsNativeSd>(m_ignore_read_only.Get());
-        case FsType::ImageNand:
-            return std::make_shared<fs::FsNativeImage>(FsImageDirectoryId_Nand);
-        case FsType::ImageSd:
-            return std::make_shared<fs::FsNativeImage>(FsImageDirectoryId_Sd);
         case FsType::Stdio:
             return std::make_shared<fs::FsStdio>(true, fs_entry.root);
         case FsType::Custom:
@@ -2327,18 +1715,6 @@ void Base::Init(const std::shared_ptr<fs::Fs>& fs, const FsEntry& fs_entry, cons
 
     view_left = std::make_unique<FsView>(this, fs, path, fs_entry, ViewSide::Left);
     view = view_left.get();
-}
-
-void MountFsHelper(const std::shared_ptr<fs::Fs>& fs, const fs::FsPath& name) {
-    const filebrowser::FsEntry fs_entry{
-        .name = name,
-        .root = fs->Root(),
-        .type = filebrowser::FsType::Custom,
-        .flags = filebrowser::FsEntryFlag_ReadOnly,
-    };
-
-    const auto options = FsOption_All &~ FsOption_LoadAssoc;
-    App::Push<filebrowser::Menu>(fs, fs_entry, fs->Root(), options);
 }
 
 } // namespace sphaira::ui::menu::filebrowser

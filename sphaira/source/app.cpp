@@ -5,7 +5,6 @@
 #include "ui/progress_box.hpp"
 #include "ui/error_box.hpp"
 
-#include "ui/menus/album_menu.hpp"
 #include "ui/menus/main_menu.hpp"
 
 #include "app.hpp"
@@ -18,21 +17,14 @@
 #include "evman.hpp"
 #include "owo.hpp"
 #include "image.hpp"
-#include "nxlink.h"
 #include "fs.hpp"
 #include "defines.hpp"
 #include "i18n.hpp"
-#include "ftpsrv_helper.hpp"
-#include "haze_helper.hpp"
-#include "web.hpp"
 #include "swkbd.hpp"
-#include "usbdvd.hpp"
 
-#include "ui/install_queue.hpp"
 #include "ui/menus/file_viewer.hpp"
 #include "utils/profile.hpp"
 #include "utils/thread.hpp"
-#include "utils/devoptab.hpp"
 
 #include <nanovg_dk.h>
 #include <minIni.h>
@@ -104,7 +96,6 @@ constexpr const u8 DEFAULT_IMAGE_DATA[]{
 };
 
 struct ThemeData {
-    fs::FsPath music_path{};
     std::string elements[ThemeEntryID_MAX]{};
 };
 
@@ -117,11 +108,6 @@ struct ThemeIdPair {
 struct FrameBufferSize {
     Vec2 size;
     Vec2 scale;
-};
-
-struct NszOption {
-    int value;
-    const char* name;
 };
 
 constexpr KeyboardState::MapEntry KEYBOARD_BUTTON_MAP[] = {
@@ -153,40 +139,6 @@ constexpr KeyboardState::MapEntry KEYBOARD_BUTTON_MAP[] = {
 
     // idk what this should map to.
     {HidKeyboardKey_R,              static_cast<u64>(Button::SELECT)},
-};
-
-constexpr NszOption NSZ_COMPRESS_LEVEL_OPTIONS[] = {
-    { .value = 0, .name = "Level 0 (no compression)" },
-    { .value = 1, .name = "Level 1" },
-    { .value = 2, .name = "Level 2" },
-    { .value = 3, .name = "Level 3 (default)" },
-    { .value = 4, .name = "Level 4" },
-    { .value = 5, .name = "Level 5" },
-    { .value = 6, .name = "Level 6" },
-    { .value = 7, .name = "Level 7" },
-    { .value = 8, .name = "Level 8" },
-};
-
-constexpr NszOption NSZ_COMPRESS_THREAD_OPTIONS[] = {
-    { .value = 0, .name = "0 (single threaded)" },
-    { .value = 1, .name = "1" },
-    { .value = 2, .name = "2" },
-    { .value = 3, .name = "3 (default)" },
-    { .value = 4, .name = "4" },
-};
-
-constexpr NszOption NSZ_COMPRESS_BLOCK_OPTIONS[] = {
-    { .value = 14, .name = "16 KB" },
-    { .value = 15, .name = "32 KB" },
-    { .value = 16, .name = "64 KB" },
-    { .value = 17, .name = "128 KB" },
-    { .value = 18, .name = "256 KB" },
-    { .value = 19, .name = "512 KB" },
-    { .value = 20, .name = "1 MB (default)" },
-    { .value = 21, .name = "2 MB" },
-    { .value = 22, .name = "4 MB" },
-    { .value = 23, .name = "8 MB" },
-    { .value = 24, .name = "16 MB" },
 };
 
 constexpr ThemeIdPair THEME_ENTRIES[] = {
@@ -365,8 +317,6 @@ void appplet_hook_calback(AppletHookType type, void *param) {
 
         case AppletHookType_OnAlbumScreenShotTaken:
             log_write("[APPLET] AppletHookType_OnAlbumScreenShotTaken\n");
-            // so that an open album menu picks the new capture up.
-            ui::menu::album::SignalChange();
             break;
 
         case AppletHookType_RequestToDisplay:
@@ -483,14 +433,10 @@ void LoadThemeInternal(ThemeMeta meta, ThemeData& theme_data, int inherit_level 
         auto theme_data = static_cast<ThemeData*>(UserData);
 
         if (!std::strcmp(Section, "theme")) {
-            if (!std::strcmp(Key, "music")) {
-                theme_data->music_path = Value;
-            } else {
-                for (auto& e : THEME_ENTRIES) {
-                    if (!std::strcmp(Key, e.label)) {
-                        theme_data->elements[e.id] = Value;
-                        break;
-                    }
+            for (auto& e : THEME_ENTRIES) {
+                if (!std::strcmp(Key, e.label)) {
+                    theme_data->elements[e.id] = Value;
+                    break;
                 }
             }
         }
@@ -507,11 +453,6 @@ void LoadThemeInternal(ThemeMeta meta, ThemeData& theme_data, int inherit_level 
             log_write("opened ini: %s\n", meta.ini_path.s);
         }
     }
-}
-
-void nxlink_callback(const NxlinkCallbackData *data) {
-    App::NotifyFlashLed();
-    evman::push(*data, false);
 }
 
 void on_i18n_change() {
@@ -611,38 +552,12 @@ void App::Loop() {
                 using T = std::decay_t<decltype(arg)>;
                 if constexpr(std::is_same_v<T, evman::LaunchNroEventData>) {
                     log_write("[LaunchNroEventData] got event\n");
-                    u64 timestamp = 0;
-                    timeGetCurrentTime(TimeType_LocalSystemClock, &timestamp);
-                    const auto nro_path = nro_normalise_path(arg.path);
-
-                    // update timestamp
-                    ini_putl(nro_path.c_str(), "timestamp", timestamp, App::PLAYLOG_PATH);
-                    log_write("updating timestamp for: %s %lu\n", nro_path.c_str(), timestamp);
-
                     // force disable pop-back to main menu.
                     __nx_applet_exit_mode = 0;
                     m_quit = true;
                 } else if constexpr(std::is_same_v<T, evman::ExitEventData>) {
                     log_write("[ExitEventData] got event\n");
                     m_quit = true;
-                } else if constexpr(std::is_same_v<T, NxlinkCallbackData>) {
-                    switch (arg.type) {
-                        case NxlinkCallbackType_Connected:
-                            log_write("[NxlinkCallbackType_Connected]\n");
-                            App::Notify("Nxlink Connected"_i18n);
-                            break;
-                        case NxlinkCallbackType_WriteBegin:
-                            log_write("[NxlinkCallbackType_WriteBegin] %s\n", arg.file.filename);
-                            App::Notify("Nxlink Upload"_i18n);
-                            break;
-                        case NxlinkCallbackType_WriteProgress:
-                            // log_write("[NxlinkCallbackType_WriteProgress]\n");
-                            break;
-                        case NxlinkCallbackType_WriteEnd:
-                            log_write("[NxlinkCallbackType_WriteEnd] %s\n", arg.file.filename);
-                            App::Notify("Nxlink Finished"_i18n);
-                            break;
-                    }
                 } else if constexpr(std::is_same_v<T, curl::DownloadEventData>) {
                     log_write("[DownloadEventData] got event\n");
                     if (arg.callback && !arg.stoken.stop_requested()) {
@@ -808,19 +723,6 @@ Result App::PushErrorBox(Result rc, const std::string& message, const std::strin
     return rc;
 }
 
-auto App::GetThemeMetaList() -> std::span<ThemeMeta> {
-    return g_app->m_theme_meta_entries;
-}
-
-void App::SetTheme(s64 theme_index) {
-    g_app->LoadTheme(g_app->m_theme_meta_entries[theme_index]);
-    g_app->m_theme_index = theme_index;
-}
-
-auto App::GetThemeIndex() -> s64 {
-    return g_app->m_theme_index;
-}
-
 auto App::GetDefaultImage() -> int {
     return g_app->m_default_image;
 }
@@ -835,10 +737,6 @@ auto App::GetExePath() -> fs::FsPath {
 
 auto App::IsHbmenu() -> bool {
     return !strcasecmp(GetExePath().s, "/hbmenu.nro");
-}
-
-auto App::GetNxlinkEnable() -> bool {
-    return g_app->m_nxlink_enabled.Get();
 }
 
 auto App::GetHddEnable() -> bool {
@@ -881,47 +779,12 @@ auto App::GetInstallSdEnable() -> bool {
     return g_app->m_install_sd.Get();
 }
 
-auto App::GetThemeMusicEnable() -> bool {
-    return g_app->m_theme_music.Get();
-}
-
-auto App::GetMtpEnable() -> bool {
-    return g_app->m_mtp_enabled.Get();
-}
-
-auto App::GetFtpEnable() -> bool {
-    return g_app->m_ftp_enabled.Get();
-}
-
 auto App::GetLanguage() -> long {
     return g_app->m_language.Get();
 }
 
 auto App::GetTextScrollSpeed() -> long {
     return g_app->m_text_scroll_speed.Get();
-}
-
-auto App::GetNszCompressLevel() -> u8 {
-    return NSZ_COMPRESS_LEVEL_OPTIONS[App::GetApp()->m_nsz_compress_level.Get()].value;
-}
-
-auto App::GetNszThreadCount() -> u8 {
-    return NSZ_COMPRESS_THREAD_OPTIONS[App::GetApp()->m_nsz_compress_threads.Get()].value;
-}
-
-auto App::GetNszBlockExponent() -> u8 {
-    return NSZ_COMPRESS_BLOCK_OPTIONS[App::GetApp()->m_nsz_compress_block_exponent.Get()].value;
-}
-
-void App::SetNxlinkEnable(bool enable) {
-    if (App::GetNxlinkEnable() != enable) {
-        g_app->m_nxlink_enabled.Set(enable);
-        if (enable) {
-            nxlinkInitialize(nxlink_callback);
-        } else {
-            nxlinkExit();
-        }
-    }
 }
 
 void App::SetHddEnable(bool enable) {
@@ -995,52 +858,13 @@ void App::SetInstallSdEnable(bool enable) {
     g_app->m_install_sd.Set(enable);
 }
 
-void App::SetThemeMusicEnable(bool enable) {
-    if (App::GetThemeMusicEnable() != enable) {
-        g_app->m_theme_music.Set(enable);
-        if (enable) {
-            g_app->LoadAndPlayThemeMusic();
-        } else {
-            g_app->CloseThemeBackgroundMusic();
-        }
-    }
-}
-
-void App::SetMtpEnable(bool enable) {
-    if (App::GetMtpEnable() != enable) {
-        g_app->m_mtp_enabled.Set(enable);
-
-#ifdef ENABLE_LIBHAZE
-        if (enable) {
-            libhaze::Init();
-        } else {
-            libhaze::Exit();
-        }
-#endif // ENABLE_LIBHAZE
-    }
-}
-
-void App::SetFtpEnable(bool enable) {
-    if (App::GetFtpEnable() != enable) {
-        g_app->m_ftp_enabled.Set(enable);
-
-#ifdef ENABLE_FTPSRV
-        if (enable) {
-            ftpsrv::Init();
-        } else {
-            ftpsrv::Exit();
-        }
-#endif // ENABLE_FTPSRV
-    }
-}
-
 void App::SetLanguage(long index) {
     if (App::GetLanguage() != index) {
         g_app->m_language.Set(index);
         on_i18n_change();
 
         App::Push<ui::OptionBox>(
-            "Restart Sphaira?"_i18n,
+            "Restart " APP_NAME "?"_i18n,
             "Back"_i18n, "Restart"_i18n, 1, [](auto op_index){
                 if (op_index && *op_index) {
                     App::ExitRestart();
@@ -1077,11 +901,11 @@ auto App::Install(ui::ProgressBox* pbox, OwoConfig& config) -> Result {
     config.icon = GetNroIcon(config.icon);
 
     if (config.logo.empty()) {
-        g_app->m_fs->read_entire_file("/config/sphaira/logo/NintendoLogo.png", config.logo);
+        g_app->m_fs->read_entire_file(APP_CONFIG_DIR "/logo/NintendoLogo.png", config.logo);
     }
 
     if (config.gif.empty()) {
-        g_app->m_fs->read_entire_file("/config/sphaira/logo/StartupMovie.gif", config.gif);
+        g_app->m_fs->read_entire_file(APP_CONFIG_DIR "/logo/StartupMovie.gif", config.gif);
     }
 
     return install_forwarder(pbox, config, GetInstallSdEnable() ? NcmStorageId_SdCard : NcmStorageId_BuiltInUser);
@@ -1133,14 +957,7 @@ void App::ExitToHomebrew() {
         Exit();
     };
 
-    if (ui::InstallQueue::Get().IsBusy()) {
-        App::Push<ui::OptionBox>("Installs are still running. Exit anyway?"_i18n,
-            "No"_i18n, "Yes"_i18n, 0, [exit_to_homebrew](auto choice) {
-                if (choice && *choice) exit_to_homebrew();
-            });
-    } else {
-        exit_to_homebrew();
-    }
+    exit_to_homebrew();
 }
 
 void App::ExitRestart() {
@@ -1260,14 +1077,6 @@ void App::Poll() {
 }
 
 void App::Update() {
-    // loop background music if it has finished.
-    audio::State song_state;
-    if (R_SUCCEEDED(audio::GetProgress(m_background_music, nullptr, &song_state))) {
-        if (song_state == audio::State::Finished) {
-            audio::SeekSong(m_background_music, 0);
-        }
-    }
-
     const bool has_wake_input = m_controller.m_kdown || m_touch_info.is_touching || m_touch_info.is_clicked;
     if (has_wake_input) {
         m_last_input_ns = armTicksToNs(armGetSystemTick());
@@ -1307,7 +1116,6 @@ void App::Update() {
         m_widgets.back()->OnFocusGained();
     }
 
-    ui::InstallQueue::Get().Update();
 }
 
 void App::Draw() {
@@ -1343,7 +1151,6 @@ void App::Draw() {
         }
     }
 
-    ui::InstallQueue::Get().Draw(vg, &m_theme);
     m_notif_manager.Draw(vg, &m_theme);
 
     nvgResetTransform(vg);
@@ -1564,13 +1371,7 @@ auto App::LoadElement(std::string_view value, ElementType type) -> ElementEntry 
     return {};
 }
 
-void App::CloseThemeBackgroundMusic() {
-    audio::CloseSong(&m_background_music);
-}
-
 void App::CloseTheme() {
-    CloseThemeBackgroundMusic();
-
     for (auto& e : m_theme.elements) {
         if (e.type == ElementType::Texture) {
             nvgDeleteImage(vg, e.texture);
@@ -1585,7 +1386,6 @@ void App::LoadTheme(const ThemeMeta& meta) {
     CloseTheme();
 
     ThemeData theme_data{};
-    theme_data.music_path = m_default_music.Get();
     LoadThemeInternal(meta, theme_data);
     m_theme.meta = meta;
 
@@ -1596,107 +1396,6 @@ void App::LoadTheme(const ThemeMeta& meta) {
         for (auto& e : THEME_ENTRIES) {
             m_theme.elements[e.id] = LoadElement(theme_data.elements[e.id], e.type);
         }
-
-        // load music
-        m_theme.music_path = theme_data.music_path;
-        LoadAndPlayThemeMusic();
-    }
-}
-
-// todo: only use opendir on if romfs, otherwise use native fs
-void App::ScanThemes(const std::string& path) {
-    auto dir = opendir(path.c_str());
-    if (!dir) {
-        return;
-    }
-    ON_SCOPE_EXIT(closedir(dir));
-
-
-    while (auto d = readdir(dir)) {
-        if (d->d_name[0] == '.') {
-            continue;
-        }
-
-        if (d->d_type != DT_REG) {
-            continue;
-        }
-
-        const std::string name = d->d_name;
-        if (!name.ends_with(".ini")) {
-            continue;
-        }
-
-        const auto full_path = path + name;
-
-        ThemeMeta meta{};
-        if (LoadThemeMeta(full_path, meta)) {
-            m_theme_meta_entries.emplace_back(meta);
-        }
-    }
-}
-
-void App::ScanThemeEntries() {
-    // load from romfs first
-    if (R_SUCCEEDED(romfsInit())) {
-        ScanThemes("romfs:/themes/");
-        romfsExit();
-    }
-
-    // then load custom entries
-    ScanThemes("/config/sphaira/themes/");
-}
-
-void App::LoadAndPlayThemeMusic() {
-    if (App::GetThemeMusicEnable() && !m_theme.music_path.empty()) {
-        audio::CloseSong(&m_background_music);
-        audio::OpenSong(m_fs.get(), m_theme.music_path, audio::Flag_Loop, &m_background_music);
-        audio::PlaySong(m_background_music);
-    }
-}
-
-Result App::SetDefaultBackgroundMusic(fs::Fs* fs, const fs::FsPath& path) {
-    constexpr const char* base_path = "/config/sphaira/themes/default_music.";
-
-    const auto ext = std::strrchr(path, '.');
-    R_UNLESS(ext, 0x1);
-
-    std::vector<u8> buf;
-    R_TRY(fs->read_entire_file(path, buf));
-
-    // remove old file if we made a copy of it.
-    audio::CloseSong(&g_app->m_background_music);
-    if (g_app->m_default_music.Get().starts_with(base_path)) {
-        log_write("[APP] removing previously copied background music file\n");
-        g_app->m_fs->DeleteFile(g_app->m_default_music.Get());
-    }
-
-    // check if we can link to the file, or if we have to copy it over.
-    // sd card fs can link to the file, but music contained in zips or hdd needs copying.
-    fs::FsPath new_path{};
-    if (path[0] == '/' && fs->IsSd() && g_app->m_fs->FileExists(path)) {
-        new_path = path;
-        log_write("[APP] linking background music\n");
-    } else {
-        std::snprintf(new_path, sizeof(new_path), "%s%s", base_path, ext + 1);
-        R_TRY(g_app->m_fs->write_entire_file(new_path, buf));
-        log_write("[APP] copying background music to sd card\n");
-    }
-
-    // save path to the music file.
-    g_app->m_default_music.Set(new_path.toString());
-
-    // load and play music file.
-    audio::OpenSong(g_app->m_fs.get(), new_path, audio::Flag_Loop, &g_app->m_background_music);
-    audio::PlaySong(g_app->m_background_music);
-
-    R_SUCCEED();
-}
-
-void App::SetBackgroundMusicPause(bool pause) {
-    if (pause) {
-        audio::PauseSong(g_app->m_background_music);
-    } else {
-        audio::PlaySong(g_app->m_background_music);
     }
 }
 
@@ -1741,17 +1440,11 @@ App::App(const char* argv0) {
         auto app = static_cast<App*>(UserData);
 
         if (!std::strcmp(Section, INI_SECTION)) {
-            if (app->m_nxlink_enabled.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_enabled.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_enabled.LoadFrom(Key, Value)) {}
-            else if (app->m_hdd_enabled.LoadFrom(Key, Value)) {}
+            if (app->m_hdd_enabled.LoadFrom(Key, Value)) {}
             else if (app->m_hdd_write_protect.LoadFrom(Key, Value)) {}
             else if (app->m_hdd_show_system_files.LoadFrom(Key, Value)) {}
             else if (app->m_hdd_ignore_hibernation.LoadFrom(Key, Value)) {}
             else if (app->m_log_enabled.LoadFrom(Key, Value)) {}
-            else if (app->m_default_music.LoadFrom(Key, Value)) {}
-            else if (app->m_theme_path.LoadFrom(Key, Value)) {}
-            else if (app->m_theme_music.LoadFrom(Key, Value)) {}
             else if (app->m_show_ip_addr.LoadFrom(Key, Value)) {}
             else if (app->m_language.LoadFrom(Key, Value)) {}
             else if (app->m_install_sysmmc.LoadFrom(Key, Value)) {}
@@ -1779,53 +1472,8 @@ App::App(const char* argv0) {
             else if (app->m_convert_to_standard_crypto.LoadFrom(Key, Value)) {}
             else if (app->m_lower_master_key.LoadFrom(Key, Value)) {}
             else if (app->m_lower_system_version.LoadFrom(Key, Value)) {}
-        } else if (!std::strcmp(Section, "homebrew")) {
-            app->m_show_abi_warning.LoadFrom(Key, Value);
         } else if (!std::strcmp(Section, "accessibility")) {
             if (app->m_text_scroll_speed.LoadFrom(Key, Value)) {}
-        } else if (!std::strcmp(Section, "dump")) {
-            if (app->m_dump_fix_filenames.LoadFrom(Key, Value)) {}
-            else if (app->m_dump_app_folder.LoadFrom(Key, Value)) {}
-            else if (app->m_dump_append_folder_with_xci.LoadFrom(Key, Value)) {}
-            else if (app->m_dump_trim_xci.LoadFrom(Key, Value)) {}
-            else if (app->m_dump_label_trim_xci.LoadFrom(Key, Value)) {}
-            else if (app->m_dump_convert_to_common_ticket.LoadFrom(Key, Value)) {}
-            else if (app->m_nsz_compress_level.LoadFrom(Key, Value)) {}
-            else if (app->m_nsz_compress_threads.LoadFrom(Key, Value)) {}
-            else if (app->m_nsz_compress_ldm.LoadFrom(Key, Value)) {}
-            else if (app->m_nsz_compress_block.LoadFrom(Key, Value)) {}
-            else if (app->m_nsz_compress_block_exponent.LoadFrom(Key, Value)) {}
-        } else if (!std::strcmp(Section, "ftp")) {
-            if (app->m_ftp_port.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_anon.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_user.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_pass.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_album.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_ams_contents.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_bis_storage.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_bis_fs.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_content_system.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_content_user.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_content_sd.LoadFrom(Key, Value)) {}
-            // else if (app->m_ftp_show_content_sd0.LoadFrom(Key, Value)) {}
-            // else if (app->m_ftp_show_custom_system.LoadFrom(Key, Value)) {}
-            // else if (app->m_ftp_show_custom_sd.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_games.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_install.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_mounts.LoadFrom(Key, Value)) {}
-            else if (app->m_ftp_show_switch.LoadFrom(Key, Value)) {}
-        } else if (!std::strcmp(Section, "mtp")) {
-            if (app->m_mtp_vid.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_pid.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_allocate_file.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_album.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_content_sd.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_content_system.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_content_user.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_games.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_install.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_mounts.LoadFrom(Key, Value)) {}
-            else if (app->m_mtp_show_speedtest.LoadFrom(Key, Value)) {}
         }
 
         return 1;
@@ -1861,23 +1509,16 @@ App::App(const char* argv0) {
         {
             SCOPED_TIMESTAMP("config directory init");
             m_fs->CreateDirectoryRecursively(APP_CONFIG_DIR);
-            m_fs->CreateDirectoryRecursively("/config/sphaira");
-            m_fs->CreateDirectory("/config/sphaira/assoc");
-            m_fs->CreateDirectory("/config/sphaira/themes");
-            m_fs->CreateDirectory("/config/sphaira/github");
-            m_fs->CreateDirectory("/config/sphaira/i18n");
-            m_fs->CreateDirectory("/config/sphaira/mount");
+            m_fs->CreateDirectory(APP_CACHE_DIR);
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/assoc");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/themes");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/github");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/i18n");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/mount");
 
             if (!ini_haskey("steamgriddb", "api_key", CONFIG_PATH)) {
                 ini_puts("steamgriddb", "api_key", "", CONFIG_PATH);
             }
-        }
-
-        {
-            // delete old cached folders/files on startup.
-            SCOPED_TIMESTAMP("old cache delete");
-            m_fs->DeleteDirectoryRecursively("/switch/sphaira/cache/themezer"); // themezer icon/json cache.
-            m_fs->DeleteFile("/switch/sphaira/cache/cache.json"); // old etag cache.
         }
 
         if (log_is_init()) {
@@ -1935,25 +1576,6 @@ App::App(const char* argv0) {
             }
         }
 
-#ifdef ENABLE_LIBHAZE
-        if (App::GetMtpEnable()) {
-            SCOPED_TIMESTAMP("mtp init");
-            libhaze::Init();
-        }
-#endif // ENABLE_LIBHAZE
-
-#ifdef ENABLE_FTPSRV
-        if (App::GetFtpEnable()) {
-            SCOPED_TIMESTAMP("ftp init");
-            ftpsrv::Init();
-        }
-#endif // ENABLE_FTPSRV
-
-        if (App::GetNxlinkEnable()) {
-            SCOPED_TIMESTAMP("nxlink init");
-            nxlinkInitialize(nxlink_callback);
-        }
-
 #ifdef ENABLE_LIBUSBHSFS
         if (App::GetHddEnable()) {
             SCOPED_TIMESTAMP("hdd init");
@@ -1962,86 +1584,9 @@ App::App(const char* argv0) {
         }
 #endif // ENABLE_LIBUSBHSFS
 
-#ifdef ENABLE_LIBUSBDVD
-        {
-            SCOPED_TIMESTAMP("usbdvd init");
-            if (R_FAILED(usbdvd::MountAll())) {
-                log_write("[USBDVD] failed to mount\n");
-            }
-        }
-#endif // ENABLE_LIBUSBDVD
-
         {
             SCOPED_TIMESTAMP("curl init");
             curl::Init();
-        }
-
-        // this has to come after curl init as it inits curl global.
-        {
-            SCOPED_TIMESTAMP("vfs init");
-            devoptab::MountVfsAll();
-        }
-
-        #ifdef ENABLE_DEVOPTAB_HTTP
-        {
-            SCOPED_TIMESTAMP("http init");
-            devoptab::MountHttpAll();
-        }
-        #endif // ENABLE_DEVOPTAB_HTTP
-
-        #ifdef ENABLE_DEVOPTAB_WEBDAV
-        {
-            SCOPED_TIMESTAMP("webdav init");
-            devoptab::MountWebdavAll();
-        }
-        #endif // ENABLE_DEVOPTAB_WEBDAV
-
-        #ifdef ENABLE_DEVOPTAB_FTP
-        {
-            SCOPED_TIMESTAMP("ftp init");
-            devoptab::MountFtpAll();
-        }
-        #endif // ENABLE_DEVOPTAB_FTP
-
-        #ifdef ENABLE_DEVOPTAB_SFTP
-        {
-            SCOPED_TIMESTAMP("sftp init");
-            devoptab::MountSftpAll();
-        }
-        #endif // ENABLE_DEVOPTAB_SFTP
-
-        #ifdef ENABLE_DEVOPTAB_NFS
-        {
-            SCOPED_TIMESTAMP("nfs init");
-            devoptab::MountNfsAll();
-        }
-        #endif // ENABLE_DEVOPTAB_NFS
-
-        #ifdef ENABLE_DEVOPTAB_SMB2
-        {
-            SCOPED_TIMESTAMP("smb init");
-            devoptab::MountSmb2All();
-        }
-        #endif // ENABLE_DEVOPTAB_SMB2
-
-        {
-            SCOPED_TIMESTAMP("game init");
-            devoptab::MountGameAll();
-        }
-
-        {
-            SCOPED_TIMESTAMP("fatfs init");
-            devoptab::MountFatfsAll();
-        }
-
-        {
-            SCOPED_TIMESTAMP("mounts init");
-            devoptab::MountInternalMounts();
-        }
-
-        {
-            SCOPED_TIMESTAMP("timestamp init");
-            // ini_putl(GetExePath(), "timestamp", m_start_timestamp, App::PLAYLOG_PATH);
         }
 
         {
@@ -2058,20 +1603,6 @@ App::App(const char* argv0) {
             m_keyboard.Init(KEYBOARD_BUTTON_MAP);
         }
 
-        {
-            SCOPED_TIMESTAMP("loader init");
-            const auto loader_info_size = envGetLoaderInfoSize();
-            if (loader_info_size) {
-                if (loader_info_size >= 8 && !std::memcmp(envGetLoaderInfo(), "sphaira", 7)) {
-                    log_write("launching from sphaira created forwarder\n");
-                    m_is_launched_via_sphaira_forwader = true;
-                } else {
-                    log_write("launching from unknown forwader: %.*s size: %zu\n", (int)loader_info_size, envGetLoaderInfo(), loader_info_size);
-                }
-            } else {
-                log_write("not launching from forwarder\n");
-            }
-        }
     });
 
     std::string language_name;
@@ -2194,79 +1725,17 @@ App::App(const char* argv0) {
 
     {
         SCOPED_TIMESTAMP("theme init");
-        ScanThemeEntries();
-
-        // try and load previous theme, default to previous version otherwise.
-        fs::FsPath theme_path = m_theme_path.Get();
         ThemeMeta theme_meta;
         if (R_SUCCEEDED(romfsInit())) {
             ON_SCOPE_EXIT(romfsExit());
-            if (!LoadThemeMeta(theme_path, theme_meta)) {
-                log_write("failed to load meta using default\n");
-                theme_path = DEFAULT_THEME_PATH;
-                LoadThemeMeta(theme_path, theme_meta);
-            }
+            LoadThemeMeta(DEFAULT_THEME_PATH, theme_meta);
         }
-        log_write("loading theme from: %s\n", theme_meta.ini_path.s);
         LoadTheme(theme_meta);
-
-        // find theme index using the path of the theme.ini
-        for (u64 i = 0; i < m_theme_meta_entries.size(); i++) {
-            if (m_theme.meta.ini_path == m_theme_meta_entries[i].ini_path) {
-                m_theme_index = i;
-                break;
-            }
-        }
     }
 }
 
 void App::PlaySoundEffect(SoundEffect effect) {
     audio::PlaySoundEffect(effect);
-}
-
-void App::DisplayThemeOptions(bool left_side) {
-    ui::SidebarEntryArray::Items theme_items{};
-    const auto theme_meta = App::GetThemeMetaList();
-    for (auto& p : theme_meta) {
-        theme_items.emplace_back(p.name);
-    }
-
-    auto options = std::make_unique<ui::Sidebar>("Theme Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
-    ON_SCOPE_EXIT(App::Push(std::move(options)));
-
-    options->Add<ui::SidebarEntryArray>("Select Theme"_i18n, theme_items, [](s64& index_out){
-        App::SetTheme(index_out);
-    }, App::GetThemeIndex(), "Customise the look of Sphaira by changing the theme"_i18n);
-
-    options->Add<ui::SidebarEntryBool>("Music"_i18n, App::GetThemeMusicEnable(), [](bool& enable){
-        App::SetThemeMusicEnable(enable);
-    },  i18n::get("bgm_enable_info",
-            "Enable background music.\n"
-            "Each theme can have it's own music file. "
-            "If a theme does not set a music file, the default music is loaded instead (if it exists)."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>("Show IP address"_i18n, App::GetApp()->m_show_ip_addr,
-        i18n::get("display_ip_info",
-            "Shows the IP address, WiFi strength, and connection type in all menus, including Applet Mode."
-        )
-    );
-
-    // todo: add file picker for music here.
-    // todo: add array to audio which has the list of supported extensions.
-    auto remove_music = options->Add<ui::SidebarEntryCallback>("Remove Background Music"_i18n, [](){
-        g_app->m_default_music.Set("");
-        audio::CloseSong(&g_app->m_background_music);
-    },  "Removes the background music file"_i18n);
-
-    remove_music->Depends([](){
-        return !g_app->m_default_music.Get().empty();
-    }, "No background music file is set"_i18n);
-}
-
-void App::DisplayNetworkOptions(bool left_side) {
-
 }
 
 void App::DisplayLogOptions() {
@@ -2317,16 +1786,6 @@ void App::DisplayAdvancedOptions(bool left_side) {
     options->Add<ui::SidebarEntryBool>("Check for updates on launch"_i18n, App::GetApp()->m_update_check_on_launch,
         "Checks GitHub for a newer version each time the app starts. Updates are only installed when you choose to."_i18n);
 
-    options->Add<ui::SidebarEntryBool>("Show ABI warning"_i18n, App::GetApp()->m_show_abi_warning,
-        "Shows a warning for homebrew built for an older ABI. These applications may have compatibility issues."_i18n);
-
-    options->Add<ui::SidebarEntryCallback>("Add / modify mounts"_i18n, [](){
-        devoptab::DisplayDevoptabSideBar();
-    },  i18n::get("mount_options_info",
-            "Create, modify, delete network mounts (HTTP, FTP, SFTP, SMB, NFS).\n"
-            "Mount options only require a URL and Name be set, with other fields being optional, such as port, user, pass etc.\n\n"
-            "Any changes made will require restarting Sphaira to take effect."));
-
     options->Add<ui::SidebarEntryBool>("Boost CPU during transfer"_i18n, App::GetApp()->m_progress_boost_mode,
         i18n::get("transfer_boost_info",
             "Enables boost mode during transfers which can improve transfer speed. "
@@ -2350,12 +1809,6 @@ void App::DisplayAdvancedOptions(bool left_side) {
         "The task keeps running; press any button or touch the screen to turn it back on. "
         "Handheld only, the screen is the biggest use of battery."_i18n);
 
-    options->Add<ui::SidebarEntryBool>("Album share PIN"_i18n, App::GetApp()->m_album_web_pin,
-        i18n::get("album_web_pin_info",
-            "If enabled, browsing the album from a phone asks for the PIN shown on the console.\n\n"
-            "Leaving this off means anyone on the same network can open the album whilst it is "
-            "being shared."));
-
     options->Add<ui::SidebarEntryArray>("Text scroll speed"_i18n, text_scroll_speed_items, [](s64& index_out){
         App::SetTextScrollSpeed(index_out);
     }, App::GetTextScrollSpeed(), "Change how fast the scrolling text updates"_i18n);
@@ -2365,10 +1818,6 @@ void App::DisplayAdvancedOptions(bool left_side) {
     },  i18n::get("install_options_info",
             "Change the install options.\n"
             "You can enable installing from here."));
-
-    options->Add<ui::SidebarEntryCallback>("Export options"_i18n, [left_side](){
-        App::DisplayDumpOptions(left_side);
-    },  "Change the export options."_i18n);
 }
 
 void App::DisplayInstallOptions(bool left_side) {
@@ -2474,350 +1923,6 @@ void App::DisplayInstallOptions(bool left_side) {
             "It is recommended to keep this disabled."));
 }
 
-void App::DisplayDumpOptions(bool left_side) {
-    auto options = std::make_unique<ui::Sidebar>("Export Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
-    ON_SCOPE_EXIT(App::Push(std::move(options)));
-
-    ui::SidebarEntryArray::Items nsz_level_items;
-    for (auto& e : NSZ_COMPRESS_LEVEL_OPTIONS) {
-        nsz_level_items.emplace_back(i18n::get(e.name));
-    }
-
-    ui::SidebarEntryArray::Items nsz_thread_items;
-    for (auto& e : NSZ_COMPRESS_THREAD_OPTIONS) {
-        nsz_thread_items.emplace_back(i18n::get(e.name));
-    }
-
-    ui::SidebarEntryArray::Items nsz_block_items;
-    for (auto& e : NSZ_COMPRESS_BLOCK_OPTIONS) {
-        nsz_block_items.emplace_back(i18n::get(e.name));
-    }
-
-    options->Add<ui::SidebarEntryBool>(
-        "Fix export filenames"_i18n, App::GetApp()->m_dump_fix_filenames,
-        i18n::get("fix_export_filenames_info",
-            "Uses the English title for export filenames and falls back to the Title ID when unavailable. "
-            "Disable this to preserve localized and Unicode titles on destinations that support them."
-        )
-    );
-    options->Add<ui::SidebarEntryBool>(
-        "Created nested folder"_i18n, App::GetApp()->m_dump_app_folder,
-        i18n::get("game_folder_info",
-            "Creates a folder using the name of the game.\n"
-            "For example, /name/name.xci\n"
-            "Disabling this would use /name.xci"
-        )
-    );
-    options->Add<ui::SidebarEntryBool>(
-        "Append folder with .xci"_i18n, App::GetApp()->m_dump_append_folder_with_xci,
-        i18n::get("xci_folder_info",
-            "XCI dumps will name the folder with the .xci extension.\n"
-            "For example, /name.xci/name.xci\n\n"
-            "Some devices only function is the xci folder is named exactly the same as the xci."
-        )
-    );
-    options->Add<ui::SidebarEntryBool>(
-        "Trim XCI"_i18n, App::GetApp()->m_dump_trim_xci,
-        "Removes the unused data at the end of the XCI, making the output smaller."_i18n
-    );
-    options->Add<ui::SidebarEntryBool>(
-        "Label trimmed XCI"_i18n, App::GetApp()->m_dump_label_trim_xci,
-        "Names the trimmed xci.\n"
-        "For example, /name/name (trimmed).xci"_i18n
-    );
-    options->Add<ui::SidebarEntryBool>(
-        "Convert to common ticket"_i18n, App::GetApp()->m_dump_convert_to_common_ticket,
-        "Converts personalised ticket to a fake common ticket."_i18n
-    );
-
-    options->Add<ui::SidebarEntryArray>("NSZ level"_i18n, nsz_level_items, [](s64& index_out){
-        App::GetApp()->m_nsz_compress_level.Set(index_out);
-    }, App::GetApp()->m_nsz_compress_level.Get(),
-        i18n::get("compress_level_info",
-            "Sets the compression level used when exporting to NSZ.\n\n"
-            "NOTE: The switch CPU is not very fast, and setting the value too high can "
-            "result in exporting taking a very long time for very little gain in size.\n\n"
-            "It is recommended to set this value to 3."
-        )
-    );
-
-    options->Add<ui::SidebarEntryArray>("NSZ threads"_i18n, nsz_thread_items, [](s64& index_out){
-        App::GetApp()->m_nsz_compress_threads.Set(index_out);
-    }, App::GetApp()->m_nsz_compress_threads.Get(),
-        i18n::get("compress_threads_info",
-            "Sets the number of threads used when compression the NCA.\n\n"
-            "A value less than 3 allows for another thread to run freely, such as read/write threads. "
-            "However in my testing, a value of 3 was usually the most performant.\n"
-            "A value of 0 will use no threads and should only be used for testing as it is always slower.\n\n"
-            "It is recommended to set this value between 1-3."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "NSZ long distance mode"_i18n, App::GetApp()->m_nsz_compress_ldm,
-        "Enables \"Long Distance Mode\" which can reduce the output size at the cost of speed."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "NSZ block compression"_i18n, App::GetApp()->m_nsz_compress_block,
-        i18n::get("block_compress_info",
-            "Enables block compression, which compresses the NCA into blocks (at the cost of compression ratio) "
-            "which allows for random access, allowing the NCZ to be mounted as a file system.\n\n"
-            "NOTE: Sphaira does not yet support mounting NCZ as a file system, but it will be added evntually."
-        )
-    );
-
-    auto block_size_option = options->Add<ui::SidebarEntryArray>("NSZ block size"_i18n, nsz_block_items, [](s64& index_out){
-        App::GetApp()->m_nsz_compress_block_exponent.Set(index_out);
-    }, App::GetApp()->m_nsz_compress_block_exponent.Get(),
-        "Sets the size of each block. The smaller the size, the faster the random access is at the cost of compression ratio."_i18n
-    );
-    block_size_option->Depends(App::GetApp()->m_nsz_compress_block, "NSZ block compression is disabled."_i18n);
-}
-
-void App::DisplayFtpOptions(bool left_side) {
-    // todo: prompt on exit to restart ftp server if options were changed.
-    auto options = std::make_unique<ui::Sidebar>("FTP Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
-    ON_SCOPE_EXIT(App::Push(std::move(options)));
-
-    options->SetOnExitWhenChanged([](){
-        if (App::GetFtpEnable()) {
-            App::Notify("Restarting FTP server..."_i18n);
-            App::SetFtpEnable(false);
-            App::SetFtpEnable(true);
-        }
-    });
-
-    options->Add<ui::SidebarEntryBool>("Enable"_i18n, App::GetFtpEnable(), [](bool& enable){
-        App::SetFtpEnable(enable);
-    },  "Enable FTP server to run in the background."_i18n);
-
-    options->Add<ui::SidebarEntryTextInput>(
-        "Port"_i18n, App::GetApp()->m_ftp_port.Get(), "", "", 1, 5,
-        "Opens the FTP server on this port."_i18n,
-        [](auto* input){
-            App::GetApp()->m_ftp_port.Set(input->GetNumValue());
-        }
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Anon"_i18n, App::GetApp()->m_ftp_anon,
-        i18n::get("login_require_info",
-            "Allows you to login without setting a username and password.\n"
-            "If disabled, you must set a user name and password below!"
-        )
-    );
-
-    options->Add<ui::SidebarEntryTextInput>(
-        "User"_i18n, App::GetApp()->m_ftp_user.Get(), "", "", -1, 64,
-        "Sets the username, must be set if anon is disabled."_i18n,
-        [](auto* input){
-            App::GetApp()->m_ftp_user.Set(input->GetValue());
-        }
-    );
-
-    options->Add<ui::SidebarEntryTextInput>(
-        "Pass"_i18n, App::GetApp()->m_ftp_pass.Get(), "", "", -1, 64,
-        "Sets the password, must be set if anon is disabled."_i18n,
-        [](auto* input){
-            App::GetApp()->m_ftp_pass.Set(input->GetValue());
-        }
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show album"_i18n, App::GetApp()->m_ftp_show_album,
-        "Shows the microSD card album folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show Atmosphere contents"_i18n, App::GetApp()->m_ftp_show_ams_contents,
-        "Shows the shortcut for the /atmosphere/contents folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show bis storage"_i18n, App::GetApp()->m_ftp_show_bis_storage,
-        i18n::get("bis_contents_info",
-            "Shows the bis folder which contains the following:\n"
-            "- BootPartition1Root.bin\n"
-            "- BootPartition2Root.bin\n"
-            "- UserDataRoot.bin\n"
-            "- BootConfigAndPackage2Part1.bin\n"
-            "- BootConfigAndPackage2Part2.bin\n"
-            "- BootConfigAndPackage2Part3.bin\n"
-            "- BootConfigAndPackage2Part4.bin\n"
-            "- BootConfigAndPackage2Part5.bin\n"
-            "- BootConfigAndPackage2Part6.bin\n"
-            "- CalibrationFile.bin\n"
-            "- SafeMode.bin\n"
-            "- User.bin\n"
-            "- System.bin\n"
-            "- SystemProperEncryption.bin"
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show bis file systems"_i18n, App::GetApp()->m_ftp_show_bis_fs,
-        i18n::get("bis_fs_info",
-            "Shows the following bis file systems:\n"
-            "- bis_calibration_file\n"
-            "- bis_safe_mode\n"
-            "- bis_user\n"
-            "- bis_system"
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show system contents"_i18n, App::GetApp()->m_ftp_show_content_system,
-        "Shows the system contents folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show user contents"_i18n, App::GetApp()->m_ftp_show_content_user,
-        "Shows the user contents folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show microSD contents"_i18n, App::GetApp()->m_ftp_show_content_sd,
-        i18n::get("microsd_contents_info",
-            "Shows the microSD contents folder.\n\n"
-            "NOTE: This is not the normal microSD card storage, it is instead "
-            "the location where NCA's are stored. The normal microSD card is always mounted."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show games"_i18n, App::GetApp()->m_ftp_show_games,
-        i18n::get("games_ftp_info",
-            "Shows the games folder.\n\n"
-            "This folder contains all of your installed games, allowing you to create "
-            "backups over FTP!\n\n"
-            "NOTE: This folder is read-only. You cannot delete games over FTP."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show install"_i18n, App::GetApp()->m_ftp_show_install,
-        i18n::get("install_ftp_info",
-            "Shows the install folder.\n\n"
-            "This folder is used for installing games via FTP.\n\n"
-            "NOTE: You must open the \"FTP Install\" menu when trying to install a game!"
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show mounts"_i18n, App::GetApp()->m_ftp_show_mounts,
-        i18n::get("mounts_ftp_info",
-            "Shows the mounts folder.\n\n"
-            "This folder is contains all of the mounts added to Sphaira, allowing you to acces them over FTP!\n"
-            "For example, you can access your SMB, WebDav or other FTP mounts over FTP."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show switch"_i18n, App::GetApp()->m_ftp_show_switch,
-        i18n::get("homebrew_folder_info",
-            "Shows the shortcut for the /switch folder."
-            "This is the folder that contains all your homebrew (NRO's)."
-        )
-    );
-}
-
-void App::DisplayMtpOptions(bool left_side) {
-    // todo: prompt on exit to restart ftp server if options were changed.
-    auto options = std::make_unique<ui::Sidebar>("MTP Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
-    ON_SCOPE_EXIT(App::Push(std::move(options)));
-
-    options->SetOnExitWhenChanged([](){
-        if (App::GetMtpEnable()) {
-            App::Notify("Restarting MTP server..."_i18n);
-            App::SetMtpEnable(false);
-            App::SetMtpEnable(true);
-        }
-    });
-
-    options->Add<ui::SidebarEntryBool>("Enable"_i18n, App::GetMtpEnable(), [](bool& enable){
-        App::SetMtpEnable(enable);
-    },  "Enable MTP server to run in the background."_i18n);
-
-    // not sure if i want to expose this to users yet.
-    // its also stubbed currently.
-    #if 0
-    options->Add<ui::SidebarEntryBool>(
-        "Pre-allocate file"_i18n, App::GetApp()->m_mtp_allocate_file,
-        i18n::get("prealloc_info",
-            "Enables pre-allocating the file size before writing.\n"
-            "This speeds up file writes, however, this can cause timeouts if all these conditions are met:\n"
-            "- using Windows\n"
-            "- using emuMMC\n"
-            "- transferring a large file (>1GB)\n\n"
-            "This option should be left enabled, however if you use the above and experience timeouts, "
-            "then try again with this option disabled."
-        )
-    );
-    #endif
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show album"_i18n, App::GetApp()->m_mtp_show_album,
-        "Shows the microSD card album folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show microSD contents"_i18n, App::GetApp()->m_mtp_show_content_sd,
-        i18n::get("microsd_contents_info",
-            "Shows the microSD contents folder.\n\n"
-            "NOTE: This is not the normal microSD card storage, it is instead "
-            "the location where NCA's are stored. The normal microSD card is always mounted."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show system contents"_i18n, App::GetApp()->m_mtp_show_content_system,
-        "Shows the system contents folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show user contents"_i18n, App::GetApp()->m_mtp_show_content_user,
-        "Shows the user contents folder."_i18n
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show games"_i18n, App::GetApp()->m_mtp_show_games,
-        i18n::get("games_mtp_info",
-            "Shows the games folder.\n\n"
-            "This folder contains all of your installed games, allowing you to create "
-            "backups over MTP!\n\n"
-            "NOTE: This folder is read-only. You cannot delete games over MTP."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show install"_i18n, App::GetApp()->m_mtp_show_install,
-        i18n::get("install_mtp_info",
-            "Shows the install folder.\n\n"
-            "This folder is used for installing games via MTP.\n\n"
-            "NOTE: You must open the \"MTP Install\" menu when trying to install a game!"
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show mounts"_i18n, App::GetApp()->m_mtp_show_mounts,
-        i18n::get("mounts_mtp_info",
-            "Shows the mounts folder.\n\n"
-            "This folder is contains all of the mounts added to Sphaira, allowing you to acces them over MTP!\n"
-            "For example, you can access your SMB, WebDav and FTP mounts over MTP."
-        )
-    );
-
-    options->Add<ui::SidebarEntryBool>(
-        "Show DevNull"_i18n, App::GetApp()->m_mtp_show_speedtest,
-        i18n::get("usb_benchmark_info",
-            "Shows the DevNull (Speed Test) folder.\n\n"
-            "This folder is used for benchmarking USB uploads. "
-            "This ia virtual folder, nothing is actally written to disk."
-        )
-    );
-}
-
 void App::DisplayHddOptions(bool left_side) {
     auto options = std::make_unique<ui::Sidebar>("HDD Options"_i18n, left_side ? ui::Sidebar::Side::LEFT : ui::Sidebar::Side::RIGHT);
     ON_SCOPE_EXIT(App::Push(std::move(options)));
@@ -2900,20 +2005,9 @@ App::~App() {
         SCOPED_TIMESTAMP("TOTAL EXIT");
         appletUnhook(&m_appletHookCookie);
 
-        // stop a background install before the services it uses go away.
-        {
-            SCOPED_TIMESTAMP("install queue exit");
-            ui::InstallQueue::Get().Shutdown();
-        }
-
         // async exit as these threads sleep every 100ms.
         {
             SCOPED_TIMESTAMP("async signal");
-#ifdef ENABLE_FTPSRV
-            ftpsrv::ExitSignal();
-#endif // ENABLE_FTPSRV
-            nxlinkSignalExit();
-            audio::ExitSignal();
             curl::ExitSignal();
         }
 
@@ -2935,20 +2029,6 @@ App::~App() {
                 i18n::exit();
             }
 
-#ifdef ENABLE_LIBUSBDVD
-            {
-                SCOPED_TIMESTAMP("usbdvd_exit");
-                usbdvd::UnmountAll();
-            }
-#endif // ENABLE_LIBUSBDVD
-
-#ifdef ENABLE_LIBHAZE
-            {
-                SCOPED_TIMESTAMP("mtp exit");
-                libhaze::Exit();
-            }
-#endif // ENABLE_LIBHAZE
-
 #ifdef ENABLE_LIBUSBHSFS
             {
                 SCOPED_TIMESTAMP("hdd exit");
@@ -2956,29 +2036,10 @@ App::~App() {
             }
 #endif // ENABLE_LIBUSBHSFS
 
-            // this has to come before curl exit as it uses curl global.
-            {
-                SCOPED_TIMESTAMP("devoptab exit");
-                devoptab::UmountAllNeworkDevices();
-            }
-
             // do these last as they were signalled to exit.
             {
                 SCOPED_TIMESTAMP("audio_exit");
-                audio::CloseSong(&m_background_music);
                 audio::Exit();
-            }
-
-#ifdef ENABLE_FTPSRV
-            {
-                SCOPED_TIMESTAMP("ftp exit");
-                ftpsrv::Exit();
-            }
-#endif // ENABLE_FTPSRV
-
-            {
-                SCOPED_TIMESTAMP("nxlink exit");
-                nxlinkExit();
             }
 
             {
@@ -2990,7 +2051,6 @@ App::~App() {
         // do not async close theme as it frees textures.
         {
             SCOPED_TIMESTAMP("theme exit");
-            ini_puts("config", "theme", m_theme.meta.ini_path, CONFIG_PATH);
             CloseTheme();
         }
 

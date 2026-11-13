@@ -45,7 +45,5 @@ struct OwoConfig {
 
 auto install_forwarder(OwoConfig& config, NcmStorageId storage_id) -> Result;
 auto install_forwarder(ui::ProgressBox* pbox, OwoConfig& config, NcmStorageId storage_id) -> Result;
-auto prepare_core_launch(const std::string& nro_path, const std::string& args, CpuCoreMode core_mode) -> Result;
-auto core_launch_pending() -> bool;
 
 } // namespace sphaira

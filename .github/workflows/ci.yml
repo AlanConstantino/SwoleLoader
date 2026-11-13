@@ -1,0 +1,60 @@
+# Builds the app with the same pinned container as local and release builds,
+# and runs the host tests. Release tags are handled by release.yml.
+name: ci
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Build
+      env:
+        CONTAINER_ENGINE: docker
+      run: ./tools/nxloader-build.sh Release
+
+    - name: Upload
+      if: ${{ github.event_name != 'pull_request' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: nro-Release
+        path: build/Release/*.nro
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      MBEDTLS_VERSION: 2.28.10
+      MBEDTLS_SHA256: 19e5b81fdac0fe22009b9e2bdcd52d7dcafbf62bc67fc59cf0a76b5b5540d149
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libzstd-dev pkg-config
+
+    # The update-signature test needs mbedtls 2.x, which the app links against.
+    - name: Build mbedtls
+      run: |
+        archive=mbedtls-$MBEDTLS_VERSION.tar.bz2
+        curl -fsSL -o "$RUNNER_TEMP/$archive" \
+          "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-$MBEDTLS_VERSION/$archive"
+        echo "$MBEDTLS_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
+        tar -xjf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+        make -C "$RUNNER_TEMP/mbedtls-$MBEDTLS_VERSION/library" -j"$(nproc)" libmbedcrypto.a
+        echo "MBEDTLS_DIR=$RUNNER_TEMP/mbedtls-$MBEDTLS_VERSION" >> "$GITHUB_ENV"
+
+    - name: Test
+      run: sh tests/nxloader/run.sh

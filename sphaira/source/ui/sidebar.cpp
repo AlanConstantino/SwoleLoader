@@ -1,5 +1,4 @@
 #include "ui/sidebar.hpp"
-#include "ui/menus/file_picker.hpp"
 #include "app.hpp"
 #include "ui/popup_list.hpp"
 #include "ui/nvg_util.hpp"
@@ -359,21 +358,6 @@ SidebarEntryTextInput::SidebarEntryTextInput(const std::string& title, s64 value
                 m_callback(this);
             }
         }
-    });
-}
-
-SidebarEntryFilePicker::SidebarEntryFilePicker(const std::string& title, const std::string& value, const std::vector<std::string>& filter, const std::string& info)
-: SidebarEntryTextBase{title, value, {}, info}, m_filter{filter} {
-
-    SetCallback([this](){
-        App::Push<menu::filebrowser::picker::Menu>(
-            [this](const fs::FsPath& path) {
-                SetValue(path);
-                SetDirty();
-                return true;
-            },
-            m_filter
-        );
     });
 }
 

@@ -2,7 +2,6 @@
 #include <memory>
 #include "app.hpp"
 #include "log.hpp"
-#include "owo.hpp"
 #include "ui/menus/main_menu.hpp"
 #include "utils/core.hpp"
 
@@ -98,10 +97,6 @@ void userAppExit(void) {
 
     sphaira::App::SetBoostMode(false);
     appletUnlockExit();
-
-    if (sphaira::core_launch_pending()) {
-        svcExitProcess();
-    }
 }
 
 } // extern "C"
