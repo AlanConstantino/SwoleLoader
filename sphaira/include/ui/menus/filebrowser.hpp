@@ -7,7 +7,6 @@
 #include "fs.hpp"
 #include "option.hpp"
 #include "hasher.hpp"
-#include "nro.hpp"
 #include "nxloader/selection_cart.hpp"
 #include <unordered_map>
 #include <span>
@@ -25,12 +24,10 @@ enum FsOption : u32 {
     FsOption_CanSelect = BIT(1),
     // shows the option to install.
     FsOption_CanInstall = BIT(2),
-    // loads file assoc.
-    FsOption_LoadAssoc = BIT(3),
     // do not prompt on exit even if not tabbed.
     FsOption_DoNotPrompt = BIT(4),
 
-    FsOption_Normal = FsOption_LoadAssoc | FsOption_CanInstall | FsOption_CanSplit | FsOption_CanSelect,
+    FsOption_Normal = FsOption_CanInstall | FsOption_CanSplit | FsOption_CanSelect,
     FsOption_All = FsOption_DoNotPrompt | FsOption_Normal,
     FsOption_Picker = FsOption_NONE,
 };
@@ -39,9 +36,7 @@ enum FsEntryFlag {
     FsEntryFlag_None,
     // write protected.
     FsEntryFlag_ReadOnly = 1 << 0,
-    // supports file assoc.
-    FsEntryFlag_Assoc = 1 << 1,
-    // this is an sd card, files can be launched from here.
+    // this is the microSD card.
     FsEntryFlag_IsSd = 1 << 2, // todo: remove this.
     // do not stat files in this entry (faster for network mount).
     FsEntryFlag_NoStatFile = 1 << 3,
@@ -52,8 +47,6 @@ enum FsEntryFlag {
 
 enum class FsType {
     Sd,
-    ImageNand,
-    ImageSd,
     Stdio,
     Custom,
 };
@@ -90,10 +83,6 @@ struct FsEntry {
         return flags & FsEntryFlag_ReadOnly;
     }
 
-    auto IsAssoc() const -> bool {
-        return flags & FsEntryFlag_Assoc;
-    }
-
     auto IsSd() const -> bool {
         return flags & FsEntryFlag_IsSd;
     }
@@ -122,15 +111,12 @@ struct FsEntry {
 // roughly 1kib in size per entry
 struct FileEntry final : FsDirectoryEntry {
     std::string extension{}; // if any
-    std::string internal_name{}; // if any
-    std::string internal_extension{}; // if any
     std::string display_name{};
     s64 file_count{-1}; // number of files in a folder, non-recursive
     s64 dir_count{-1}; // number folders in a folder, non-recursive
     u64 application_id{};
     FsTimeStampRaw time_stamp{};
     bool checked_extension{}; // did we already search for an ext?
-    bool checked_internal_extension{}; // did we already search for an ext?
     bool selected{}; // is this file selected?
     bool done_stat{}; // have we checked file_size / count.
     bool title_lookup_complete{};
@@ -164,42 +150,8 @@ struct FileEntry final : FsDirectoryEntry {
         return extension;
     }
 
-    auto GetInternalName() const -> std::string {
-        if (!internal_name.empty()) {
-            return internal_name;
-        }
-        return GetName();
-    }
-
-    auto GetInternalExtension() const -> std::string {
-        if (!internal_extension.empty()) {
-            return internal_extension;
-        }
-        return GetExtension();
-    }
-
     auto IsSelected() const -> bool {
         return selected;
-    }
-};
-
-struct FileAssocEntry {
-    fs::FsPath path{}; // ini name
-    std::string name{}; // ini name
-    std::vector<std::string> ext{}; // list of ext
-    std::vector<std::string> database{}; // list of systems
-    bool use_base_name{}; // if set, uses base name (rom.zip) otherwise uses internal name (rom.gba)
-
-    auto IsExtension(std::string_view extension, std::string_view internal_extension) const -> bool {
-        for (const auto& assoc_ext : ext) {
-            if (extension.length() == assoc_ext.length() && !strncasecmp(assoc_ext.data(), extension.data(), assoc_ext.length())) {
-                return true;
-            }
-            if (internal_extension.length() == assoc_ext.length() && !strncasecmp(assoc_ext.data(), internal_extension.data(), assoc_ext.length())) {
-                return true;
-            }
-        }
-        return false;
     }
 };
 
@@ -257,7 +209,6 @@ struct FsView final : Widget {
     void OnClick();
 
     void SetIndex(s64 index);
-    void InstallForwarder();
 
     void InstallFiles();
     void ToggleSelection();
@@ -336,7 +287,6 @@ struct FsView final : Widget {
     void OnDeleteCallback();
     void OnPasteCallback();
     void OnRenameCallback();
-    auto CheckIfUpdateFolder() -> Result;
 
     auto get_collection(const fs::FsPath& path, const fs::FsPath& parent_name, FsDirCollection& out, bool inc_file, bool inc_dir, bool inc_size) -> Result;
     auto get_collections(const fs::FsPath& path, const fs::FsPath& parent_name, FsDirCollections& out, bool inc_size = false) -> Result;
@@ -352,12 +302,6 @@ struct FsView final : Widget {
     void DisplayOptions();
     void DisplayAdvancedOptions();
 
-    using MountFsFunc = Result(*)(fs::Fs *fs, const fs::FsPath &path, fs::FsPath &out_path);
-    // using MountFsFunc = std::function<Result(fs::Fs *fs, const fs::FsPath &path, fs::FsPath &out_path)>;
-    using UmountFsFunc = std::function<void(const fs::FsPath &mount)>;
-
-    void MountFileFs(const MountFsFunc& mount_func, const UmountFsFunc& umount_func);
-
 // private:
     Base* m_menu{};
     ViewSide m_side{};
@@ -372,7 +316,6 @@ struct FsView final : Widget {
     std::span<u32> m_entries_current{};
 
     std::unique_ptr<List> m_list{};
-    std::optional<fs::FsPath> m_daybreak_path{};
 
     // this keeps track of the highlighted file before opening a folder
     // if the user presses B to go back to the previous dir
@@ -383,7 +326,6 @@ struct FsView final : Widget {
     s64 m_selected_count{};
     ScrollingText m_scroll_name{};
 
-    bool m_is_update_folder{};
     bool m_title_info_initialized{};
     bool m_scanned{};
     bool m_sort_pending{};
@@ -471,10 +413,6 @@ protected:
 
     void RefreshViews();
 
-    void LoadAssocEntriesPath(const fs::FsPath& path);
-    void LoadAssocEntries();
-    auto FindFileAssocFor() -> std::vector<FileAssocEntry>;
-
     void AddSelectedEntries(SelectedType type) {
         auto entries = view->GetSelectedEntries();
         if (entries.empty()) {
@@ -513,21 +451,11 @@ protected:
     std::unique_ptr<FsView> view_left{};
     std::unique_ptr<FsView> view_right{};
 
-    std::vector<FileAssocEntry> m_assoc_entries{};
     SelectedStash m_selected{};
     std::shared_ptr<nxloader_ui::SelectionCart> m_cart{std::make_shared<nxloader_ui::SelectionCart>()};
     bool m_review_after_selection{};
 
     std::vector<std::string> m_filter{};
-
-    // local copy of nro entries that is loaded in LoadAssocEntriesPath()
-    // if homebrew::GetNroEntries() returns nothing, usually due to
-    // the menu not being loaded.
-    // this is a bit of a hack to support replacing the homebrew menu tab,
-    // sphaira wasn't really designed for this.
-    // however this will work for now, until i add support for additional
-    // nro scan mounts, at which point this won't scale.
-    std::vector<NroEntry> m_nro_entries{};
 
     option::OptionLong m_sort{INI_SECTION, "sort", SortType::SortType_Alphabetical};
     option::OptionLong m_order{INI_SECTION, "order", OrderType::OrderType_Descending};
@@ -536,7 +464,6 @@ protected:
     option::OptionBool m_hidden_last{INI_SECTION, "hidden_last", false};
     option::OptionBool m_ignore_read_only{INI_SECTION, "ignore_read_only", false};
 
-    bool m_loaded_assoc_entries{};
     bool m_split_screen{};
 };
 
@@ -554,22 +481,5 @@ struct Menu final : Base {
 auto IsSamePath(std::string_view a, std::string_view b) -> bool;
 auto IsExtension(std::string_view ext1, std::string_view ext2) -> bool;
 auto IsExtension(std::string_view ext, std::span<const std::string_view> list) -> bool;
-
-struct FsStdioWrapper final : fs::FsStdio {
-    using OnExit = std::function<void(void)>;
-    FsStdioWrapper(const fs::FsPath& root, const OnExit& on_exit) : fs::FsStdio{true, root}, m_on_exit{on_exit} {
-
-    }
-
-    ~FsStdioWrapper() {
-        if (m_on_exit) {
-            m_on_exit();
-        }
-    }
-
-    const OnExit m_on_exit;
-};
-
-void MountFsHelper(const std::shared_ptr<fs::Fs>& fs, const fs::FsPath& name);
 
 } // namespace sphaira::ui::menu::filebrowser

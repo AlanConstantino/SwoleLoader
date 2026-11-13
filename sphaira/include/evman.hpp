@@ -9,7 +9,6 @@
 #include <functional>
 #include <stop_token>
 #include <switch.h>
-#include <nxlink.h>
 #include "download.hpp"
 
 namespace sphaira::evman {
@@ -37,7 +36,6 @@ struct CallbackEventData {
 using EventData = std::variant<
     LaunchNroEventData,
     ExitEventData,
-    NxlinkCallbackData,
     curl::DownloadEventData,
     CallbackEventData
 >;

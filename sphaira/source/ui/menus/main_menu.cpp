@@ -4,7 +4,6 @@
 #include "ui/popup_list.hpp"
 #include "ui/option_box.hpp"
 #include "ui/progress_box.hpp"
-#include "ui/install_queue.hpp"
 #include "ui/error_box.hpp"
 #include "ui/scrollable_text.hpp"
 #include "ui/nvg_util.hpp"
@@ -434,47 +433,13 @@ MainMenu::MainMenu() {
             language_items.push_back("Українська"); // Ukrainian
             language_items.push_back("Türkçe"); // Turkish
 
-            options->Add<SidebarEntryCallback>("Network"_i18n, [this](){
-                auto options = std::make_unique<Sidebar>("Network Options"_i18n, Sidebar::Side::LEFT);
-                ON_SCOPE_EXIT(App::Push(std::move(options)));
-
-                options->Add<SidebarEntryCallback>("FTP"_i18n, [](){ App::DisplayFtpOptions(); },
-                    i18n::get("ftp_settings_info",
-                        "Enable / modify the FTP server settings such as port, user/pass and the folders that are shown.\n\n"
-                        "NOTE: Changing any of the options will automatically restart the FTP server when exiting the options menu.")
-                );
-
-                options->Add<SidebarEntryCallback>("MTP"_i18n, [](){ App::DisplayMtpOptions(); },
-                    i18n::get("mtp_settings_info",
-                        "Enable / modify the MTP responder settings such as the folders that are shown.\n\n"
-                        "NOTE: Changing any of the options will automatically restart the MTP server when exiting the options menu.")
-                );
-
-                options->Add<SidebarEntryCallback>("HDD"_i18n, [](){
-                    App::DisplayHddOptions();
-                },  "Enable / modify the HDD mount options."_i18n);
-
-                options->Add<SidebarEntryBool>("NXlink"_i18n, App::GetNxlinkEnable(), [](bool& enable){
-                    App::SetNxlinkEnable(enable);
-                },  i18n::get("nxlink_enable_info",
-                        "Enable NXlink server to run in the background. "
-                        "NXlink is used to send .nro's from PC to the switch\n\n"
-                        "If you are not a developer, you can disable this option."));
-
-            },  i18n::get("network_options_info",
-                    "Toggle FTP, MTP, HDD and NXlink"));
-
-            options->Add<SidebarEntryCallback>("Theme"_i18n, [](){
-                App::DisplayThemeOptions();
-            }, "Customise the look of Sphaira by changing the theme"_i18n);
+            options->Add<SidebarEntryCallback>("USB drives"_i18n, [](){
+                App::DisplayHddOptions();
+            }, "Change how USB drives are mounted."_i18n);
 
             options->Add<SidebarEntryArray>("Language"_i18n, language_items, [](s64& index_out){
                 App::SetLanguage(index_out);
-            }, (s64)App::GetLanguage(),
-                i18n::get("translation_info",
-                    "Change the language.\n\n"
-                    "If your language isn't found, or translations are missing, please consider opening a PR at "
-                    "github.com/ITotalJustice/sphaira"));
+            }, (s64)App::GetLanguage(), "Change the language."_i18n);
 
             options->Add<SidebarEntryCallback>("Advanced Options"_i18n, [](){
                 App::DisplayAdvancedOptions();

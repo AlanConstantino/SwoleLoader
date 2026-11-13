@@ -12,6 +12,9 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# The build copies assets/romfs over its own copy without deleting anything,
+# so start that copy fresh or removed assets would still ship.
+rm -rf "$root/build/Release/sphaira/romfs"
 "$root/tools/nxloader-build.sh" Release
 
 build="$root/build/Release"

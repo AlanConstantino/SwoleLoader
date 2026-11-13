@@ -6,7 +6,6 @@
 #include "app.hpp"
 #include "defines.hpp"
 #include "log.hpp"
-#include "ui/install_queue.hpp"
 #include "ui/option_box.hpp"
 #include "ui/progress_box.hpp"
 #include "yati/yati.hpp"
@@ -87,7 +86,6 @@ void StartReviewedBatch(std::shared_ptr<InstallReviewData> review, bool continue
 }
 
 void RunReviewedBatch(std::shared_ptr<InstallReviewData> review, bool continue_on_error) {
-    if (ui::InstallQueue::Get().IsBusy()) { App::Notify("Finish the active installation queue first."); return; }
     const auto battery = App::GetApp()->m_battery_guard.Get() ? App::GetBattery() : nxloader::Battery{};
     if (nxloader::CheckBattery(battery) != nxloader::BatteryAction::Continue) {
         App::Push<ui::OptionBox>("The battery is at " + std::to_string(battery.percent)
@@ -280,7 +278,6 @@ void RetryReviewSizes(std::shared_ptr<InstallReviewData> review, std::vector<std
 
 void ScanAndInstall(std::shared_ptr<SelectionCart> cart) {
     if (!App::GetInstallEnable()) { App::ShowEnableInstallPrompt(); return; }
-    if (ui::InstallQueue::Get().IsBusy()) { App::Notify("Finish the active installation queue first."); return; }
     const auto review = std::make_shared<InstallReviewData>();
     review->sd = App::GetInstallSdEnable();
     review->cart = cart;

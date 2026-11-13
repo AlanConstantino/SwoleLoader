@@ -36,7 +36,9 @@ Use `/config/swoleloader/last-batch.txt` to investigate a bottleneck. Stage time
 8. While several packages install, **X** switches the progress box between the current game and the whole list. The list view shows the bytes installed out of the total, a progress bar and the time left for everything selected, based on the average speed since the batch started. Press **X** again to return to the current game.
 9. **B** opens the cancellation prompt during scanning or installation. After a batch, return to the same editable review: failed/unfinished packages remain selected, completed packages cannot be queued again by Undo. Remove problem items or retry the remaining selection. Details, including unknown-size reasons for attempted packages, are saved at `/config/swoleloader/last-batch.txt`. The report is saved after every package, so it survives a batch that is cut off.
 
-**+** returns to the homebrew menu at `/hbmenu.nro`, with confirmation if the background install queue is active. If the homebrew menu is missing or cannot be launched, the app shows an error and stays open. The app opens directly to the file browser; the L/R store/apps tabs and their configuration controls have been removed.
+**+** returns to the homebrew menu at `/hbmenu.nro`. If the homebrew menu is missing or cannot be launched, the app shows an error and stays open. The app opens directly to the file browser. Pressing **A** on an NSP, NSZ, XCI, XCZ or MSP file opens the install review for it, or for the current selection if there is one.
+
+Sphaira's other features are removed: the appstore and other download menus, network mounts, FTP/MTP, NXlink, forwarders and launching homebrew or emulators, the album, game and save management, dumping, themes and background music. SwoleLoader only installs packages, updates itself, and keeps the file browser's file operations (copy, move, rename, delete, zip, hash). USB drive options are under **Y → USB drives**.
 
 Game grouping follows the folders you select, without reading package payloads or guessing game identities. Select the individual game folders (or use **Select all visible** in their parent folder) for one group per game. Selecting a whole library folder still recursively includes everything, displayed under that selected folder. Loose files use their containing folder, combining conventional Base/Updates/DLC subfolders under their parent game folder.
 
@@ -64,9 +66,9 @@ A running Podman or Docker engine is required. The wrapper chooses Podman when i
 ./tools/nxloader-build.sh Release
 ```
 
-Outputs are `build/Dev/swoleloader.nro` or `build/Release/swoleloader.nro`, and a matching `switch/swoleloader/swoleloader.nro` directory inside that build. `NXLOADER_BUILD_JOBS=4` is the default. The first build fetches dependencies and needs network access. The inherited `Lite` preset disables USB drives and is unsuitable for SwoleLoader.
+Outputs are `build/Dev/swoleloader.nro` or `build/Release/swoleloader.nro`, and a matching `switch/swoleloader/swoleloader.nro` directory inside that build. `NXLOADER_BUILD_JOBS=4` is the default. The first build fetches dependencies and needs network access.
 
-Use `./build_release.sh` to build Release into `dist/`: the `.nro`, its update signature, a ZIP for installing by hand, and a ZIP of debug symbols for crash reports. The app's name, author, version, install folder and update repository are set in [app.cmake](app.cmake). The original `tools/nro-builder` scripts are upstream references; use the SwoleLoader wrapper above for this fork.
+Use `./build_release.sh` to build Release into `dist/`: the `.nro`, its update signature, a ZIP for installing by hand, and a ZIP of debug symbols for crash reports. The app's name, author, version, install folder and update repository are set in [app.cmake](app.cmake).
 
 ## Battery and power loss
 
@@ -122,4 +124,4 @@ The NRO can be cross-compiled and structurally checked here, but actual USB disc
 
 Based on [NaGaa95/sphaira](https://github.com/NaGaa95/sphaira) commit `8430e420f0ea4ea800c6689f6797c38e97aafbc0` (Sphaira 1.0.9). The GPLv3 license is retained in [LICENSE](LICENSE); original documentation and contributor credits are retained in [UPSTREAM.md](UPSTREAM.md).
 
-SwoleLoader keeps its settings, themes, translations, mounts and caches in `/config/swoleloader/`, so it doesn't touch a Sphaira install on the same card. Themes downloaded from themezer go to `/themes/swoleloader/`. Its updater only checks the repository in `app.cmake` and only installs releases signed with this project's key, so a Sphaira release cannot replace the custom build. Some inherited UI labels still use the Sphaira name. SwoleLoader's additions are in `sphaira/include/nxloader/`, `sphaira/source/nxloader/`, and the file-browser integration.
+SwoleLoader keeps its settings, logs, translation overrides and caches in `/config/swoleloader/`, so it doesn't touch a Sphaira install on the same card. Its updater only checks the repository in `app.cmake` and only installs releases signed with this project's key, so a Sphaira release cannot replace the custom build. Some inherited UI labels still use the Sphaira name. SwoleLoader's additions are in `sphaira/include/nxloader/`, `sphaira/source/nxloader/`, and the file-browser integration.
