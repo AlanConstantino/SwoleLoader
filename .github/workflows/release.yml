@@ -1,0 +1,60 @@
+# Builds and signs a release when a version tag is pushed, then creates a
+# draft GitHub release. Consoles are offered the update once the draft is
+# published. See RELEASING.md.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Check tag matches app.cmake
+      run: |
+        version=$(sed -n 's/^set(APP_VERSION \([0-9.]*\))$/\1/p' app.cmake)
+        if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+          echo "::error::Tag $GITHUB_REF_NAME does not match APP_VERSION $version in app.cmake. Tag the release as v$version."
+          exit 1
+        fi
+
+    - name: Build and sign
+      env:
+        CONTAINER_ENGINE: docker
+        NXLOADER_REQUIRE_SIGNATURE: 1
+        NXLOADER_SIGNING_KEY: ${{ runner.temp }}/signing-key.pem
+        UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+      run: |
+        if [ -z "$UPDATE_SIGNING_KEY" ]; then
+          echo "::error::The UPDATE_SIGNING_KEY secret is not set. See RELEASING.md."
+          exit 1
+        fi
+        (umask 077 && printf '%s\n' "$UPDATE_SIGNING_KEY" > "$NXLOADER_SIGNING_KEY")
+        trap 'rm -f "$NXLOADER_SIGNING_KEY"' EXIT
+        ./build_release.sh
+
+    - name: Check update settings
+      run: |
+        repo=$(sed -n 's/^APP_UPDATE_REPO=//p' build/Release/release.env)
+        if [ "$repo" != "$GITHUB_REPOSITORY" ]; then
+          echo "::warning::APP_UPDATE_REPO in app.cmake is '$repo', but this is $GITHUB_REPOSITORY. Installed copies will look for updates in '$repo'."
+        fi
+
+    - name: Create draft release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        nro=$(sed -n 's/^APP_NRO=//p' build/Release/release.env)
+        folder=$(sed -n 's/^APP_FOLDER=//p' build/Release/release.env)
+        gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+          --title "$GITHUB_REF_NAME" --generate-notes \
+          "dist/$nro" "dist/$nro.sig" "dist/$folder-${GITHUB_REF_NAME#v}.zip" \
+          "dist/$folder-${GITHUB_REF_NAME#v}-symbols.zip"
