@@ -1,16 +1,27 @@
 # Builds the app with the same pinned container as local and release builds,
 # and runs the host tests. Release tags are handled by release.yml.
+#
+# Runs on pull requests that change code, and by hand from the Actions tab
+# (which also uploads the .nro). Commits pushed straight to main, such as
+# version bumps for a release, don't start it.
 name: ci
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'assets/screenshots/**'
+      - 'LICENSE'
 
 permissions:
   contents: read
+
+# A newer push to the same pull request replaces the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -19,9 +30,31 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
+    - uses: docker/setup-buildx-action@v3
+
+    # Building newlib and libnx takes minutes; the layer cache makes it seconds
+    # until the Dockerfile changes.
+    - name: Build image
+      uses: docker/build-push-action@v6
+      with:
+        context: tools/nxloader-builder
+        build-args: BUILD_JOBS=4
+        tags: localhost/nxloader-builder:local
+        load: true
+        cache-from: type=gha,scope=nxloader-builder
+        cache-to: type=gha,mode=max,scope=nxloader-builder
+
+    - name: Restore compiler cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/nxloader-ccache
+        key: ccache-release-${{ github.sha }}
+        restore-keys: ccache-release-
+
     - name: Build
       env:
         CONTAINER_ENGINE: docker
+        NXLOADER_SKIP_IMAGE_BUILD: 1
       run: ./tools/nxloader-build.sh Release
 
     - name: Upload
@@ -46,7 +79,16 @@ jobs:
         sudo apt-get install -y --no-install-recommends libzstd-dev pkg-config
 
     # The update-signature test needs mbedtls 2.x, which the app links against.
+    # It is built once per version and checksum, then restored from the cache.
+    - name: Restore mbedtls
+      id: mbedtls
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/mbedtls-${{ env.MBEDTLS_VERSION }}
+        key: mbedtls-${{ runner.os }}-${{ env.MBEDTLS_VERSION }}-${{ env.MBEDTLS_SHA256 }}
+
     - name: Build mbedtls
+      if: steps.mbedtls.outputs.cache-hit != 'true'
       run: |
         archive=mbedtls-$MBEDTLS_VERSION.tar.bz2
         curl -fsSL -o "$RUNNER_TEMP/$archive" \
@@ -54,7 +96,8 @@ jobs:
         echo "$MBEDTLS_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
         tar -xjf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
         make -C "$RUNNER_TEMP/mbedtls-$MBEDTLS_VERSION/library" -j"$(nproc)" libmbedcrypto.a
-        echo "MBEDTLS_DIR=$RUNNER_TEMP/mbedtls-$MBEDTLS_VERSION" >> "$GITHUB_ENV"
 
     - name: Test
+      env:
+        MBEDTLS_DIR: ${{ runner.temp }}/mbedtls-${{ env.MBEDTLS_VERSION }}
       run: sh tests/nxloader/run.sh

@@ -40,7 +40,7 @@ It is a fork of [Sphaira](https://github.com/ITotalJustice/sphaira). The app was
 | `tools/symbolize.sh` | Turns crash addresses into source lines. |
 | `tools/update-keygen.sh` | Creates the update signing key pair. |
 | `build_release.sh` | Builds the Release preset and writes the signed release to `dist/`. |
-| `.github/workflows/ci.yml` | Builds with the pinned container and runs the host tests on pushes to `main` and on pull requests. |
+| `.github/workflows/ci.yml` | Builds with the pinned container and runs the host tests on pull requests that change code, and by hand. Commits pushed straight to `main` don't start it. The toolchain image, compiler output and mbedtls are cached between runs. |
 | `.github/workflows/release.yml` | Builds a draft GitHub release when a `v*` tag is pushed. |
 | `README.md`, `RELEASING.md` | User docs and the release process. Keep both current. |
 | `UPSTREAM.md` | A copy of Sphaira's README. To be replaced, see P3. |
@@ -118,7 +118,7 @@ On the console:
    Record the results, and file anything that fails as a fix task.
 2. **Clean up CI.** Done 2026-11-13.
    - The inherited `python-usb-export.yml`, `python-usb-install.yml` and `webusb-build.yml` are deleted, and P1 removed the PC-side USB scripts they tested.
-   - `ci.yml` replaces `build_presets.yml`. It builds with `tools/nxloader-build.sh` and runs `tests/nxloader/run.sh` on Ubuntu with GCC and a checksum-verified mbedtls 2.28.10, so the signature test runs. It has not run on GitHub yet: check the first run after pushing.
+   - `ci.yml` replaces `build_presets.yml`. It builds with `tools/nxloader-build.sh` and runs `tests/nxloader/run.sh` on Ubuntu with GCC and a checksum-verified mbedtls 2.28.10, so the signature test runs. It first ran on PR #1, where it passed.
 3. **Prove the release workflow.** Raise `APP_VERSION`, push a matching `v` tag, and check the draft release:
    - it has exactly four files;
    - the `.sig` matches the `.nro`;
