@@ -7,7 +7,7 @@ set(APP_AUTHOR "AlanConstantino")
 
 # Release version, as MAJOR.MINOR.PATCH. Release tags must match it, for
 # example v0.1.6.
-set(APP_VERSION 0.1.6)
+set(APP_VERSION 0.1.7)
 
 # Install location on the SD card: sd:/switch/<APP_FOLDER>/<APP_NRO>.
 # Settings, logs and reports go in sd:/config/<APP_FOLDER>.
