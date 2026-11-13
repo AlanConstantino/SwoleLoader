@@ -95,6 +95,22 @@ auto nro_parse_internal(fs::Fs* fs, const fs::FsPath& path, NroEntry& entry) -> 
     R_SUCCEED();
 }
 
+auto nro_get_icon_internal(fs::File* f, u64 size, u64 offset) -> std::vector<u8> {
+    // protect again really messed up sizes.
+    if (size > 1024 * 1024) {
+        return {};
+    }
+
+    std::vector<u8> icon;
+    u64 bytes_read{};
+    icon.resize(size);
+
+    R_TRY_RESULT(f->Read(offset, icon.data(), icon.size(), FsReadOption_None, &bytes_read), {});
+    R_UNLESS(bytes_read == icon.size(), {});
+
+    return icon;
+}
+
 auto launch_internal(const std::string& path, const std::string& argv) -> Result {
     R_TRY(envSetNextLoad(path.c_str(), argv.c_str()));
 
@@ -121,6 +137,30 @@ auto launch_internal(const std::string& path, const std::string& argv) -> Result
 auto nro_parse(const fs::FsPath& path, NroEntry& entry) -> Result {
     fs::FsNativeSd fs;
     return nro_parse_internal(&fs, path, entry);
+}
+
+auto nro_get_icon(const fs::FsPath& path, u64 size, u64 offset) -> std::vector<u8> {
+    fs::FsNativeSd fs;
+    fs::File f;
+    R_TRY_RESULT(fs.OpenFile(path, FsOpenMode_Read, &f), {});
+    return nro_get_icon_internal(&f, size, offset);
+}
+
+auto nro_get_icon(const fs::FsPath& path) -> std::vector<u8> {
+    fs::FsNativeSd fs;
+    NroData data;
+    NroAssetHeader asset;
+    u64 bytes_read;
+
+    fs::File f;
+    R_TRY_RESULT(fs.OpenFile(path, FsOpenMode_Read, &f), {});
+
+    R_TRY_RESULT(f.Read(0, &data, sizeof(data), FsReadOption_None, &bytes_read), {});
+    R_UNLESS(data.header.magic == NROHEADER_MAGIC, {});
+    R_TRY_RESULT(f.Read(data.header.size, &asset, sizeof(asset), FsReadOption_None, &bytes_read), {});
+    R_UNLESS(asset.magic == NROASSETHEADER_MAGIC, {});
+
+    return nro_get_icon_internal(&f, asset.icon.size, data.header.size + asset.icon.offset);
 }
 
 auto nro_get_nacp(const fs::FsPath& path, NacpStruct& nacp) -> Result {
@@ -163,6 +203,16 @@ auto nro_launch(std::string path, std::string args) -> Result {
 }
 
 auto nro_add_arg(std::string arg) -> std::string {
+    if (arg.contains(' ')) {
+        return '\"' + arg + '\"';
+    }
+    return arg;
+}
+
+auto nro_add_arg_file(std::string arg) -> std::string {
+    if (!arg.starts_with("sdmc:")) {
+        arg = "sdmc:" + arg;
+    }
     if (arg.contains(' ')) {
         return '\"' + arg + '\"';
     }

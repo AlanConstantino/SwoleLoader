@@ -4,6 +4,7 @@
 #include "nanovg/dk_renderer.hpp"
 #include "ui/widget.hpp"
 #include "ui/notification.hpp"
+#include "owo.hpp"
 #include "option.hpp"
 #include "fs.hpp"
 #include "log.hpp"
@@ -107,6 +108,9 @@ public:
     static void Set12HourTimeEnable(bool enable);
     static void SetLanguage(long index);
     static void SetTextScrollSpeed(long index);
+
+    static auto Install(OwoConfig& config) -> Result;
+    static auto Install(ui::ProgressBox* pbox, OwoConfig& config) -> Result;
 
     static void PlaySoundEffect(SoundEffect effect);
 

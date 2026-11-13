@@ -38,7 +38,9 @@ Use `/config/swoleloader/last-batch.txt` to investigate a bottleneck. Stage time
 
 **+** returns to the homebrew menu at `/hbmenu.nro`. If the homebrew menu is missing or cannot be launched, the app shows an error and stays open. The app opens directly to the file browser. Pressing **A** on an NSP, NSZ, XCI, XCZ or MSP file opens the install review for it, or for the current selection if there is one.
 
-Sphaira's other features are removed: the appstore and other download menus, network mounts, FTP/MTP, NXlink, forwarders and launching homebrew or emulators, the album, game and save management, dumping, themes and background music. SwoleLoader only installs packages, updates itself, and keeps the file browser's file operations (copy, move, rename, delete, zip, hash). USB drive options are under **Y → USB drives**.
+Sphaira's other features are removed: the appstore and other download menus, network mounts, FTP/MTP, NXlink, launching homebrew or emulators, the album, game and save management, dumping, themes and background music. SwoleLoader only installs packages, updates itself, and keeps the file browser's file operations (copy, move, rename, delete, zip, hash). USB drive options are under **Y → USB drives**.
+
+To give a homebrew app its own icon on the HOME screen, highlight its `.nro` on the microSD card and press **X → Install Forwarder**. Installing must be enabled, as for packages. The editor lets you change the title and icon (from the `.nro`, an image file, or SteamGridDB with your own API key) before it installs.
 
 Game grouping follows the folders you select, without reading package payloads or guessing game identities. Select the individual game folders (or use **Select all visible** in their parent folder) for one group per game. Selecting a whole library folder still recursively includes everything, displayed under that selected folder. Loose files use their containing folder, combining conventional Base/Updates/DLC subfolders under their parent game folder.
 

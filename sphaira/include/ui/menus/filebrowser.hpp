@@ -209,6 +209,7 @@ struct FsView final : Widget {
     void OnClick();
 
     void SetIndex(s64 index);
+    void InstallForwarder();
 
     void InstallFiles();
     void ToggleSelection();

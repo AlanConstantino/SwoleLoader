@@ -64,6 +64,8 @@ struct NroEntry {
 
 auto nro_parse(const fs::FsPath& path, NroEntry& entry) -> Result;
 
+auto nro_get_icon(const fs::FsPath& path, u64 size, u64 offset) -> std::vector<u8>;
+auto nro_get_icon(const fs::FsPath& path) -> std::vector<u8>;
 auto nro_get_nacp(const fs::FsPath& path, NacpStruct& nacp) -> Result;
 
 // path is pre-appended to args, such that argv[0] == path
@@ -71,5 +73,8 @@ auto nro_launch(std::string path, std::string args = {}) -> Result;
 
 // if the arg contains a space, it will wrap it in quotes
 auto nro_add_arg(std::string arg) -> std::string;
+
+// same as above but prefixes "sdmc" to keep compat with hbmenu
+auto nro_add_arg_file(std::string arg) -> std::string;
 
 } // namespace sphaira

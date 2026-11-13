@@ -66,6 +66,7 @@ add_executable(sphaira
     source/ui/menus/file_viewer.cpp
     source/ui/menus/image_viewer.cpp
     source/ui/menus/filebrowser.cpp
+    source/ui/menus/file_picker.cpp
     source/ui/menus/main_menu.cpp
     source/ui/menus/menu_base.cpp
 
@@ -81,6 +82,8 @@ add_executable(sphaira
     source/ui/widget.cpp
     source/ui/list.cpp
     source/ui/scrolling_text.cpp
+    source/ui/forwarder_editor.cpp
+    source/ui/steamgriddb_icon.cpp
 
     source/app.cpp
     source/download.cpp
@@ -93,6 +96,7 @@ add_executable(sphaira
     source/crash_handler.cpp
     source/main.cpp
     source/nro.cpp
+    source/owo.cpp
     source/swkbd.cpp
     source/hasher.cpp
     source/i18n.cpp
@@ -375,9 +379,13 @@ add_custom_target(sphaira_romfs_sync
 add_dependencies(sphaira_romfs sphaira_romfs_sync)
 set_property(TARGET sphaira_romfs APPEND PROPERTY DKP_ASSET_FILES ${sphaira_romfs_source_files})
 
-# set the embed path for assets
+# wait until hbl is built first as we need the exefs to embed
+add_dependencies(sphaira hbl_nso hbl_npdm)
+
+# set the embed path for assets and hbl
 target_compile_options(sphaira PRIVATE
     --embed-dir=${CMAKE_SOURCE_DIR}/assets/embed
+    --embed-dir=${CMAKE_BINARY_DIR}/hbl
 )
 
 # create nacp

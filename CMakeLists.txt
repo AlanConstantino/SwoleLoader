@@ -51,4 +51,5 @@ add_compile_options(
   "$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>"
 )
 
+add_subdirectory(hbl)
 add_subdirectory(sphaira)

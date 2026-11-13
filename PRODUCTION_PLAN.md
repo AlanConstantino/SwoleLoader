@@ -113,7 +113,7 @@ On the console:
    - **Power loss:** hold the power button partway through an install. Relaunch, check the "Removed … left by an interrupted install" notification, then reinstall.
    - **Updates:** publish the next version and update to it from inside the app.
    - **Crash reports:** make a crash, then check that `crash.txt` symbolizes.
-   - **After the P1 trim:** open every remaining menu, use each file operation once (copy, move, rename, delete, zip, unzip, hash), check the sound effects and the theme, change the USB drive options under **Y → USB drives**, and check that a Sphaira install on the same card keeps its settings.
+   - **After the P1 trim:** open every remaining menu, use each file operation once (copy, move, rename, delete, zip, unzip, hash), check the sound effects and the theme, change the USB drive options under **Y → USB drives**, and check that a Sphaira install on the same card keeps its settings. Create a forwarder for a small `.nro`, launch it from the HOME screen, then delete it from System Settings.
 
    Record the results, and file anything that fails as a fix task.
 2. **Clean up CI.** Done 2026-11-13.
@@ -133,8 +133,9 @@ On the console:
 
 Done 2026-11-13. The owner's scope: SwoleLoader installs packages and updates itself, nothing else. Untested on hardware; see the last item of P0.1.
 
-- **Removed:** the appstore, themezer, the GitHub downloader, Ownfoil, the album and its web server, FTP and MTP, NXlink, network and other virtual mounts (HTTP, FTP, SFTP, SMB, NFS, WebDAV, game, save, system partitions, archives), USB DVD, the web browser, the IR camera, the game, save, storage and gamecard menus, dumping and NSZ export, the PC USB and network install streams and their PC scripts in `tools/`, forwarders and the `hbl/` loader they embedded, launching homebrew and emulators from the file browser, the background install queue, theme selection and custom themes, background music and the music player, and the `Lite` preset.
+- **Removed:** the appstore, themezer, the GitHub downloader, Ownfoil, the album and its web server, FTP and MTP, NXlink, network and other virtual mounts (HTTP, FTP, SFTP, SMB, NFS, WebDAV, game, save, system partitions, archives), USB DVD, the web browser, the IR camera, the game, save, storage and gamecard menus, dumping and NSZ export, the PC USB and network install streams and their PC scripts in `tools/`, launching homebrew and emulators from the file browser, the background install queue, theme selection and custom themes, background music and the music player, and the `Lite` preset.
 - **Kept:** the file browser with its file operations (copy, move, rename, delete, zip, unzip, hash, edit as text, image viewer), USB drives (FAT32, exFAT, NTFS), the batch installer, MSP installs, the over-the-air updater, language selection, logs, crash reports, the battery guard and screen-off, and the UI sound effects.
+- **Forwarders, restored after the trim:** **X → Install Forwarder** on a `.nro` on the microSD card, with the forwarder editor, its SteamGridDB icon search and file picker, and the `hbl/` loader the forwarder embeds. This is how the fork had it before P1, except that launching emulator cores through the loader stayed out with the rest of the emulator support. The owner also asked about PC installs and dumping, but before P1 nothing in the fork could open those screens, so they were left out rather than wired up untested.
 - **Changed:**
   - **A** on a package file opens the install review instead of browsing inside the file.
   - USB drive options moved from **Y → Network → HDD** to **Y → USB drives**.
@@ -142,7 +143,7 @@ Done 2026-11-13. The owner's scope: SwoleLoader installs packages and updates it
 - **Branding:**
   - Error codes show as `AppError_*`, and the error box links to this repository's issues instead of Sphaira's.
   - Translation entries that no code can look up were pruned, about 850 per language, including every one that mentioned Sphaira.
-- **Size:** the Release `.nro` went from 4.76 MB to 2.3 MB.
+- **Size:** the Release `.nro` went from 4.76 MB to 2.5 MB with forwarders back.
 - **Left as is:** the installer core (`yati.cpp`) apart from two calls into removed menus; the unused stream-install path inside it; `Result_*` codes of removed features in `defines.hpp`, kept so the remaining codes keep their numbers; and the inherited screenshots in `assets/screenshots/`, which belong to the P3 rewrite of `UPSTREAM.md`.
 
 ### P2: gaps and improvements

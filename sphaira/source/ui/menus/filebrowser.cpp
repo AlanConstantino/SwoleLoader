@@ -7,11 +7,13 @@
 #include "ui/popup_list.hpp"
 #include "ui/progress_box.hpp"
 #include "ui/error_box.hpp"
+#include "ui/forwarder_editor.hpp"
 
 #include "utils/utils.hpp"
 
 #include "log.hpp"
 #include "app.hpp"
+#include "nro.hpp"
 #include "ui/nvg_util.hpp"
 #include "fs.hpp"
 #include "nacp_compat.hpp"
@@ -446,6 +448,44 @@ void FsView::SetIndex(s64 index) {
 
 
     m_menu->UpdateSubheading();
+}
+
+void FsView::InstallForwarder() {
+    const auto path = GetNewPathCurrent();
+    NroEntry nro{};
+    NacpStruct nacp{};
+    if (R_FAILED(nro_parse(path, nro)) || R_FAILED(nro_get_nacp(path, nacp))) {
+        App::Notify("Failed to parse nro"_i18n);
+        return;
+    }
+
+    forwarder::Config editor{};
+    editor.values.title = nro.GetName();
+    editor.values.author = nro.GetAuthor();
+    editor.values.version = nacp.display_version;
+    editor.values.icon = nro_get_icon(path, nro.icon_size, nro.icon_offset);
+    editor.icon_source = "NRO Icon"_i18n;
+    editor.on_create = [path, nacp](const forwarder::Values& values) mutable {
+        OwoConfig config{};
+        config.nro_path = path.toString();
+        config.name = values.title;
+        config.author = values.author;
+        config.nacp = nacp;
+        config.icon = values.icon;
+        config.profile_selection = values.profile_selection;
+        config.address_space = values.address_space;
+        config.core_mode = values.core_mode;
+        config.screenshot = values.screenshot;
+        config.video_capture = values.video_capture;
+        config.svc_debug_mode = values.svc_debug_mode;
+
+        if (R_FAILED(App::Install(config))) {
+            App::Notify("Failed to install forwarder"_i18n);
+            return false;
+        }
+        return true;
+    };
+    forwarder::Show(std::move(editor));
 }
 
 void FsView::InstallFiles() {
@@ -1295,6 +1335,14 @@ void FsView::DisplayOptions() {
             }
         }
 
+        if (IsSd() && m_entries_current.size() && !m_selected_count) {
+            if (GetEntry().IsFile() && IsSamePath(GetEntry().GetExtension(), "nro")) {
+                auto entry = options->Add<SidebarEntryCallback>("Install Forwarder"_i18n, [this](){
+                    InstallForwarder();
+                });
+                entry->Depends(App::GetInstallEnable, i18n::get(App::INSTALL_DEPENDS_STR), App::ShowEnableInstallPrompt);
+            }
+        }
     }
 
     if (m_entries_current.size()) {

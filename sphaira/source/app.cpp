@@ -15,6 +15,7 @@
 #include "nro.hpp"
 #include "nacp_compat.hpp"
 #include "evman.hpp"
+#include "owo.hpp"
 #include "image.hpp"
 #include "fs.hpp"
 #include "defines.hpp"
@@ -347,6 +348,23 @@ auto GetFrameBufferSize() -> FrameBufferSize {
     fb.scale.x = fb.size.x / SCREEN_WIDTH;
     fb.scale.y = fb.size.y / SCREEN_HEIGHT;
     return fb;
+}
+
+// this will try to decompress the icon and then re-convert it to jpg
+// in order to strip exif data.
+// this doesn't take long at all, but it's very overkill.
+// todo: look into jpeg/exif spec to manually strip data
+auto GetNroIcon(const std::vector<u8>& nro_icon) -> std::vector<u8> {
+    auto icon = ImageNormalizeIcon(nro_icon);
+    if (!icon.empty()) {
+        return icon;
+    }
+
+    icon = ImageNormalizeIcon(DEFAULT_IMAGE_DATA);
+    if (!icon.empty()) {
+        return icon;
+    }
+    return {std::begin(DEFAULT_IMAGE_DATA), std::end(DEFAULT_IMAGE_DATA)};
 }
 
 auto LoadThemeMeta(const fs::FsPath& path, ThemeMeta& meta) -> bool {
@@ -858,6 +876,39 @@ void App::SetLanguage(long index) {
 
 void App::SetTextScrollSpeed(long index) {
     g_app->m_text_scroll_speed.Set(index);
+}
+
+auto App::Install(OwoConfig& config) -> Result {
+    App::Push<ui::ProgressBox>(0, "Installing Forwarder"_i18n, config.name, [config](auto pbox) mutable -> Result {
+        return Install(pbox, config);
+    }, [](Result rc){
+        App::PushErrorBox(rc, "Failed to install forwarder"_i18n);
+
+        if (R_SUCCEEDED(rc)) {
+            App::PlaySoundEffect(SoundEffect::Install);
+            App::Notify("Installed!"_i18n);
+        }
+    });
+
+    R_SUCCEED();
+}
+
+auto App::Install(ui::ProgressBox* pbox, OwoConfig& config) -> Result {
+    config.nro_path = nro_add_arg_file(config.nro_path);
+    if (config.icon.empty()) {
+        config.icon.assign(std::begin(DEFAULT_IMAGE_DATA), std::end(DEFAULT_IMAGE_DATA));
+    }
+    config.icon = GetNroIcon(config.icon);
+
+    if (config.logo.empty()) {
+        g_app->m_fs->read_entire_file(APP_CONFIG_DIR "/logo/NintendoLogo.png", config.logo);
+    }
+
+    if (config.gif.empty()) {
+        g_app->m_fs->read_entire_file(APP_CONFIG_DIR "/logo/StartupMovie.gif", config.gif);
+    }
+
+    return install_forwarder(pbox, config, GetInstallSdEnable() ? NcmStorageId_SdCard : NcmStorageId_BuiltInUser);
 }
 
 auto App::IsEmummc() -> bool {
