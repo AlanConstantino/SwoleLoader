@@ -22,7 +22,7 @@ public:
         std::uint64_t unknown_count{};
         bool complete{};
         std::string error;
-        std::shared_ptr<const std::vector<Package>> packages;
+        std::shared_ptr<const std::vector<Package>> packages{};
         std::uint64_t source_unknown_count{};
     };
 
