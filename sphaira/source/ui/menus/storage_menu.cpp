@@ -39,7 +39,7 @@ constexpr float BAR_ROUNDING = 2.f;
 
 // measured sizes are kept next to the other sphaira state, walking ncm for
 // every game is by far the slowest part of this menu.
-constexpr fs::FsPath CACHE_PATH{"/config/sphaira/storage_cache.bin"};
+constexpr fs::FsPath CACHE_PATH{APP_CONFIG_DIR "/storage_cache.bin"};
 constexpr u32 CACHE_MAGIC = 0x53535053; // 'SPSS'
 constexpr u32 CACHE_VERSION = 1;
 

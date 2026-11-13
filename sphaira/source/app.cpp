@@ -1077,11 +1077,11 @@ auto App::Install(ui::ProgressBox* pbox, OwoConfig& config) -> Result {
     config.icon = GetNroIcon(config.icon);
 
     if (config.logo.empty()) {
-        g_app->m_fs->read_entire_file("/config/sphaira/logo/NintendoLogo.png", config.logo);
+        g_app->m_fs->read_entire_file(APP_CONFIG_DIR "/logo/NintendoLogo.png", config.logo);
     }
 
     if (config.gif.empty()) {
-        g_app->m_fs->read_entire_file("/config/sphaira/logo/StartupMovie.gif", config.gif);
+        g_app->m_fs->read_entire_file(APP_CONFIG_DIR "/logo/StartupMovie.gif", config.gif);
     }
 
     return install_forwarder(pbox, config, GetInstallSdEnable() ? NcmStorageId_SdCard : NcmStorageId_BuiltInUser);
@@ -1643,7 +1643,7 @@ void App::ScanThemeEntries() {
     }
 
     // then load custom entries
-    ScanThemes("/config/sphaira/themes/");
+    ScanThemes(APP_CONFIG_DIR "/themes/");
 }
 
 void App::LoadAndPlayThemeMusic() {
@@ -1655,7 +1655,7 @@ void App::LoadAndPlayThemeMusic() {
 }
 
 Result App::SetDefaultBackgroundMusic(fs::Fs* fs, const fs::FsPath& path) {
-    constexpr const char* base_path = "/config/sphaira/themes/default_music.";
+    constexpr const char* base_path = APP_CONFIG_DIR "/themes/default_music.";
 
     const auto ext = std::strrchr(path, '.');
     R_UNLESS(ext, 0x1);
@@ -1861,12 +1861,12 @@ App::App(const char* argv0) {
         {
             SCOPED_TIMESTAMP("config directory init");
             m_fs->CreateDirectoryRecursively(APP_CONFIG_DIR);
-            m_fs->CreateDirectoryRecursively("/config/sphaira");
-            m_fs->CreateDirectory("/config/sphaira/assoc");
-            m_fs->CreateDirectory("/config/sphaira/themes");
-            m_fs->CreateDirectory("/config/sphaira/github");
-            m_fs->CreateDirectory("/config/sphaira/i18n");
-            m_fs->CreateDirectory("/config/sphaira/mount");
+            m_fs->CreateDirectory(APP_CACHE_DIR);
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/assoc");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/themes");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/github");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/i18n");
+            m_fs->CreateDirectory(APP_CONFIG_DIR "/mount");
 
             if (!ini_haskey("steamgriddb", "api_key", CONFIG_PATH)) {
                 ini_puts("steamgriddb", "api_key", "", CONFIG_PATH);
@@ -1876,8 +1876,7 @@ App::App(const char* argv0) {
         {
             // delete old cached folders/files on startup.
             SCOPED_TIMESTAMP("old cache delete");
-            m_fs->DeleteDirectoryRecursively("/switch/sphaira/cache/themezer"); // themezer icon/json cache.
-            m_fs->DeleteFile("/switch/sphaira/cache/cache.json"); // old etag cache.
+            m_fs->DeleteDirectoryRecursively(APP_CACHE_DIR "/themezer"); // themezer icon/json cache.
         }
 
         if (log_is_init()) {

@@ -37,8 +37,8 @@
 namespace sphaira::ui::menu::appstore {
 namespace {
 
-constexpr fs::FsPath CACHE_PATH{"/switch/sphaira/cache/appstore"};
-constexpr fs::FsPath STORE_CONFIG_PATH{"/config/sphaira/appstoreAPI.ini"};
+constexpr fs::FsPath CACHE_PATH{APP_CACHE_DIR "/appstore"};
+constexpr fs::FsPath STORE_CONFIG_PATH{APP_CONFIG_DIR "/appstoreAPI.ini"};
 constexpr auto STORE_CONFIG_SECTION = "STORE";
 constexpr auto STORE_CONFIG_SECTION_LEGACY = "appstore";
 constexpr auto OFFICIAL_STORE_NAME = "HB App Store";
@@ -530,7 +530,7 @@ auto UninstallApp(ProgressBox* pbox, const Entry& entry) -> Result {
 // 3. parse manifest and unzip everything to placeholder
 // 4. move everything from placeholder to normal location
 auto InstallApp(ProgressBox* pbox, const Entry& entry) -> Result {
-    static const fs::FsPath zip_out{"/switch/sphaira/cache/appstore/temp.zip"};
+    static const fs::FsPath zip_out{APP_CACHE_DIR "/appstore/temp.zip"};
 
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
@@ -1049,7 +1049,7 @@ void EntryMenu::SetIndex(s64 index) {
 Menu::Menu(u32 flags) : grid::Menu{"AppStore"_i18n, flags} {
     fs::FsNativeSd fs;
     fs.CreateDirectoryRecursively(CACHE_PATH);
-    fs.CreateDirectoryRecursively("/config/sphaira");
+    fs.CreateDirectoryRecursively(APP_CONFIG_DIR);
     LoadStoreSources();
     if (m_filter.Get() < 0 || m_filter.Get() >= Filter_MAX) m_filter.Set(Filter_All);
     if (m_sort.Get() < 0 || m_sort.Get() > SortType_Alphabetical) m_sort.Set(SortType_Updated);

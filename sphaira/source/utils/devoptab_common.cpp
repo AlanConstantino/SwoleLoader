@@ -909,7 +909,7 @@ Result MountNetworkDevice(const CreateDeviceCallback& create_device, size_t file
     SCOPED_RWLOCK(&g_rwlock, true);
 
     fs::FsPath config_path{};
-    std::snprintf(config_path, sizeof(config_path), "/config/sphaira/mount/%s.ini", name);
+    std::snprintf(config_path, sizeof(config_path), APP_CONFIG_DIR "/mount/%s.ini", name);
 
     MountConfigs configs{};
     LoadConfigsFromIni(config_path, configs);

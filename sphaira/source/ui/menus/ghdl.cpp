@@ -40,11 +40,11 @@
 namespace sphaira::ui::menu::gh {
 namespace {
 
-constexpr auto CACHE_PATH = "/switch/sphaira/cache/github";
-constexpr fs::FsPath DIRECT_LINKS_PATH{"/config/sphaira/github/direct_links.json"};
-constexpr fs::FsPath REPOSITORIES_PATH{"/config/sphaira/github/repositories.json"};
-constexpr fs::FsPath DIRECT_LINKS_DIRECTORY{"/config/sphaira/github"};
-constexpr fs::FsPath SWITCHPORTS_CACHE_PATH{"/switch/sphaira/cache/github/switchports.md"};
+constexpr auto CACHE_PATH = APP_CACHE_DIR "/github";
+constexpr fs::FsPath DIRECT_LINKS_PATH{APP_CONFIG_DIR "/github/direct_links.json"};
+constexpr fs::FsPath REPOSITORIES_PATH{APP_CONFIG_DIR "/github/repositories.json"};
+constexpr fs::FsPath DIRECT_LINKS_DIRECTORY{APP_CONFIG_DIR "/github"};
+constexpr fs::FsPath SWITCHPORTS_CACHE_PATH{APP_CACHE_DIR "/github/switchports.md"};
 constexpr auto SWITCHPORTS_README_URL = "https://raw.githubusercontent.com/robzilla10001/SwitchPorts/main/README.md";
 constexpr std::size_t SWITCHPORTS_README_MAX_SIZE = 2 * 1024 * 1024;
 
@@ -766,7 +766,7 @@ auto NormalizeArchivePath(std::string_view archive_name, std::string_view instal
 }
 
 auto DownloadApp(ProgressBox* pbox, const GhApiAsset& gh_asset, const AssetEntry* entry, bool validate_archive = false) -> Result {
-    static const fs::FsPath temp_file{"/switch/sphaira/cache/github/ghdl.temp"};
+    static const fs::FsPath temp_file{APP_CACHE_DIR "/github/ghdl.temp"};
 
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
@@ -980,7 +980,7 @@ auto ResolveExternalSwitchPort(ProgressBox* pbox, const SwitchPortEntry& port, G
 }
 
 auto InstallSwitchPort(ProgressBox* pbox, const SwitchPortEntry& port, const GhApiAsset& asset) -> Result {
-    static const fs::FsPath temp_file{"/switch/sphaira/cache/github/switchports.temp"};
+    static const fs::FsPath temp_file{APP_CACHE_DIR "/github/switchports.temp"};
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());
     fs.DeleteFile(temp_file);
@@ -1393,7 +1393,7 @@ void Menu::Scan() {
     }
 
     // then load custom entries
-    LoadEntriesFromPath("/config/sphaira/github/");
+    LoadEntriesFromPath(APP_CONFIG_DIR "/github/");
     LoadDirectLinks();
     LoadRepositories();
     Sort();

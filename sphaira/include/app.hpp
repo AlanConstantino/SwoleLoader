@@ -290,7 +290,7 @@ public:
 
 // private:
     static constexpr inline auto CONFIG_PATH = APP_CONFIG_DIR "/config.ini";
-    static constexpr inline auto PLAYLOG_PATH = "/config/sphaira/playlog.ini";
+    static constexpr inline auto PLAYLOG_PATH = APP_CONFIG_DIR "/playlog.ini";
     static constexpr inline auto INI_SECTION = "config";
     static constexpr inline auto DEFAULT_THEME_PATH = "romfs:/themes/default_theme.ini";
 
@@ -334,7 +334,7 @@ public:
     option::OptionBool m_hdd_ignore_hibernation{INI_SECTION, "hdd_ignore_hibernation", false};
 
     option::OptionBool m_log_enabled{INI_SECTION, "log_enabled", true};
-    option::OptionString m_default_music{INI_SECTION, "default_music", "/config/sphaira/themes/default_music.bfstm"};
+    option::OptionString m_default_music{INI_SECTION, "default_music", APP_CONFIG_DIR "/themes/default_music.bfstm"};
     option::OptionString m_theme_path{INI_SECTION, "theme", DEFAULT_THEME_PATH};
     option::OptionBool m_theme_music{INI_SECTION, "theme_music", true};
     option::OptionBool m_show_ip_addr{INI_SECTION, "show_ip_addr", true};

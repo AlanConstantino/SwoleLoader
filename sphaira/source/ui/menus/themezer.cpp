@@ -30,9 +30,9 @@
 namespace sphaira::ui::menu::themezer {
 namespace {
 
-// format is /themes/sphaira/Theme Name by Author/theme_name-type.nxtheme
-constexpr fs::FsPath THEME_FOLDER{"/themes/sphaira/"};
-constexpr auto CACHE_PATH = "/switch/sphaira/cache/themezer";
+// format is /themes/<APP_FOLDER>/Theme Name by Author/theme_name-type.nxtheme
+constexpr fs::FsPath THEME_FOLDER{"/themes/" APP_FOLDER "/"};
+constexpr auto CACHE_PATH = APP_CACHE_DIR "/themezer";
 constexpr auto API_URL = "https://api.themezer.net/graphql";
 
 constexpr const char* NRO_URL = "https://github.com/exelix11/SwitchThemeInjector";
@@ -294,7 +294,7 @@ struct ThemeInstallRequest {
 };
 
 auto InstallTheme(ProgressBox* pbox, const ThemeInstallRequest& request, std::vector<std::string>& nxtheme_paths) -> Result {
-    static const fs::FsPath zip_out{"/switch/sphaira/cache/themezer/temp.zip"};
+    static const fs::FsPath zip_out{APP_CACHE_DIR "/themezer/temp.zip"};
 
     fs::FsNativeSd fs;
     R_TRY(fs.GetFsOpenResult());

@@ -1104,7 +1104,7 @@ auto prepare_core_launch(const std::string& nro_path, const std::string& args, C
     R_UNLESS(redirect_storage != NcmStorageId_None, Result_CoreUnavailable);
     ON_SCOPE_EXIT(serviceClose(&resolver.s));
 
-    constexpr const char* nca_sd_path = "/config/sphaira/core-launch/program.nca";
+    constexpr const char* nca_sd_path = APP_CONFIG_DIR "/core-launch/program.nca";
     const std::string nca_loader_path = "@Sdcard:" + std::string{nca_sd_path};
 
     FileEntries romfs;
@@ -1117,7 +1117,7 @@ auto prepare_core_launch(const std::string& nro_path, const std::string& args, C
     add_file_entry(romfs, "/redirectPath", original_path, std::strlen(original_path));
     const auto program = create_program_nca(program_id, keys, exefs, romfs, {});
     fs::FsNativeSd sd;
-    R_TRY(sd.CreateDirectoryRecursively("/config/sphaira/core-launch"));
+    R_TRY(sd.CreateDirectoryRecursively(APP_CONFIG_DIR "/core-launch"));
     R_TRY(sd.write_entire_file(nca_sd_path, program.data));
     R_TRY(sd.Commit());
 

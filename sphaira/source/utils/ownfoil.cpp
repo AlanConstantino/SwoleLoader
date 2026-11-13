@@ -19,7 +19,7 @@ namespace {
 
 using namespace sphaira::ui;
 
-#define OWNFOIL_INI_PATH "/config/sphaira/ownfoil.ini"
+#define OWNFOIL_INI_PATH APP_CONFIG_DIR "/ownfoil.ini"
 
 constexpr const char* PLACEHOLDER_UID_PREFIX = "pending-";
 
@@ -149,7 +149,7 @@ void SaveConfig(Config& config, const std::string& previous_uid) {
 
     // no duplicate pass is needed: the uid *is* the section, so promoting a
     // hand-added entry onto an already-saved uid collapses the two.
-    fs::FsNativeSd().CreateDirectoryRecursively("/config/sphaira/");
+    fs::FsNativeSd().CreateDirectoryRecursively(APP_CONFIG_DIR "/");
     ini_puts(config.uid.c_str(), "name", config.name.c_str(), OWNFOIL_INI_PATH);
     ini_puts(config.uid.c_str(), "local_address", config.local_address.c_str(), OWNFOIL_INI_PATH);
     ini_puts(config.uid.c_str(), "remote_address", config.remote_address.c_str(), OWNFOIL_INI_PATH);

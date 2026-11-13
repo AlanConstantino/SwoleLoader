@@ -40,6 +40,7 @@ It is a fork of [Sphaira](https://github.com/ITotalJustice/sphaira). The app was
 | `tools/symbolize.sh` | Turns crash addresses into source lines. |
 | `tools/update-keygen.sh` | Creates the update signing key pair. |
 | `build_release.sh` | Builds the Release preset and writes the signed release to `dist/`. |
+| `.github/workflows/ci.yml` | Builds with the pinned container and runs the host tests on pushes to `main` and on pull requests. |
 | `.github/workflows/release.yml` | Builds a draft GitHub release when a `v*` tag is pushed. |
 | `README.md`, `RELEASING.md` | User docs and the release process. Keep both current. |
 | `UPSTREAM.md` | A copy of Sphaira's README. To be replaced, see P3. |
@@ -114,17 +115,19 @@ On the console:
    - **Crash reports:** make a crash, then check that `crash.txt` symbolizes.
 
    Record the results, and file anything that fails as a fix task.
-2. **Clean up CI.** Pushing to `main` currently starts four inherited workflows.
-   - Delete `python-usb-export.yml`, `python-usb-install.yml` and `webusb-build.yml`, which tries to deploy Sphaira's WebUSB site. **Owner** should confirm, unless the PC-side USB tools are kept.
-   - `build_presets.yml` builds against unpinned latest libnx and newlib, while local and release builds use the pinned image. Switch it to `tools/nxloader-build.sh` with `CONTAINER_ENGINE=docker`, the way `release.yml` does.
-   - Add a job that runs `tests/nxloader/run.sh` with cmake, openssl and mbedtls 2.28 available.
+2. **Clean up CI.** Done 2026-11-13.
+   - The inherited `python-usb-export.yml`, `python-usb-install.yml` and `webusb-build.yml` are deleted. The PC-side USB scripts are still in `tools/`, now untested in CI.
+   - `ci.yml` replaces `build_presets.yml`. It builds with `tools/nxloader-build.sh` and runs `tests/nxloader/run.sh` on Ubuntu with GCC and a checksum-verified mbedtls 2.28.10, so the signature test runs. It has not run on GitHub yet: check the first run after pushing.
 3. **Prove the release workflow.** Raise `APP_VERSION`, push a matching `v` tag, and check the draft release:
    - it has exactly four files;
    - the `.sig` matches the `.nro`;
    - publishing it makes it visible to the app's update check once the repo is public.
-4. **Stop sharing folders with Sphaira.** Themes, i18n overrides, network mounts, core-launch files and the custom logo still use `/config/sphaira/…`, and a GitHub cache uses `/switch/sphaira/cache/…`. Find them with `grep -rn "/config/sphaira\|/switch/sphaira" sphaira/source sphaira/include`.
-   - Move each one to `APP_CONFIG_DIR`, or drop the feature as part of P1.
-   - A real Sphaira install on the same card must not be affected.
+4. **Stop sharing folders with Sphaira.** Done 2026-11-13.
+   - Every `/config/sphaira/…` and `/switch/sphaira/cache/…` path now uses `APP_CONFIG_DIR` or `APP_CACHE_DIR` (`/config/swoleloader/cache`). Themezer downloads go to `/themes/swoleloader/`.
+   - The startup cleanup that deleted Sphaira's themezer cache and old etag file now clears only SwoleLoader's own cache.
+   - Nothing is migrated. Themes, translations, mounts or logos left in `/config/sphaira/` are no longer read.
+   - `/atmosphere/.sphaira_msp_*` is still used for MSP staging. Each install uses a fresh name and removes it afterward, so it doesn't clash with Sphaira.
+   - Untested on hardware: add a check to the P0.1 pass that a Sphaira install on the same card keeps its themes and settings.
 
 ### P1: trim to what SwoleLoader is
 

@@ -210,7 +210,9 @@ target_compile_definitions(sphaira PRIVATE
     -DAPP_VERSION="${sphaira_VERSION}"
     -DAPP_NAME="${APP_NAME}"
     -DAPP_NRO_NAME="${APP_NRO}"
+    -DAPP_FOLDER="${APP_FOLDER}"
     -DAPP_CONFIG_DIR="/config/${APP_FOLDER}"
+    -DAPP_CACHE_DIR="/config/${APP_FOLDER}/cache"
     -DAPP_UPDATE_REPO="${APP_UPDATE_GITHUB_REPO}"
     -DAPP_DISPLAY_VERSION="${sphaira_DISPLAY_VERSION}"
     -DCURL_NO_OLDIES=1

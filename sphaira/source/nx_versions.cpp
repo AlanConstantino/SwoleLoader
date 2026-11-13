@@ -15,7 +15,7 @@ namespace sphaira::nx_versions {
 namespace {
 
 constexpr const char* DEFAULT_VERSIONS_URL = "https://raw.githubusercontent.com/16BitWonder/nx-versions/master/versions.txt";
-constexpr fs::FsPath CACHE_PATH{"/switch/sphaira/cache/nx_versions.txt"};
+constexpr fs::FsPath CACHE_PATH{APP_CACHE_DIR "/nx_versions.txt"};
 constexpr s64 CACHE_MAX_AGE = 7 * 24 * 60 * 60;
 
 struct CatalogEntry {

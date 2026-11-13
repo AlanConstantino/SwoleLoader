@@ -17,7 +17,7 @@ namespace sphaira::ui::menu::ownfoil {
 
 // shared by the catalog and the pages it opens, so artwork the grid already
 // fetched is read back rather than fetched again.
-inline constexpr auto CACHE_PATH = "/switch/sphaira/cache/ownfoil";
+inline constexpr auto CACHE_PATH = APP_CACHE_DIR "/ownfoil";
 
 // keyed on the url, not the app id: two shops can answer with different art for
 // one game, and a shop swaps a hotlink for its own copy as the download lands.
