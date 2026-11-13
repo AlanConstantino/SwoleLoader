@@ -1,129 +1,172 @@
-# SwoleLoader
+<p align="center">
+  <img src="assets/swoleloader-icon.png" alt="SwoleLoader icon: a muscular Nintendo Switch pulling NSP files in through a USB cable" width="200">
+</p>
 
-💪 Never skip install day. A Nintendo Switch homebrew app that bulk-installs NSP, NSZ, XCI and XCZ files from a USB drive in one go, with list-wide progress, battery protection and automatic updates.
+<h1 align="center">SwoleLoader</h1>
 
-SwoleLoader is a fork of [Sphaira](https://github.com/ITotalJustice/sphaira), built on its USB filesystem support and YATI installer. See [UPSTREAM.md](UPSTREAM.md).
+<p align="center">
+  <strong>💪 Never skip install day.</strong><br>
+  Bulk-install NSP, NSZ, XCI and XCZ games on your Nintendo Switch, straight from a USB drive.
+</p>
 
-## Performance priorities
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Nintendo%20Switch-e60012?logo=nintendoswitch&logoColor=white" alt="Platform: Nintendo Switch">
+  <img src="https://img.shields.io/badge/license-GPLv3-blue" alt="License: GPLv3">
+  <a href="https://github.com/ITotalJustice/sphaira"><img src="https://img.shields.io/badge/fork%20of-Sphaira-8a2be2" alt="Fork of Sphaira"></a>
+</p>
 
-Installation throughput and responsive browsing of large libraries are the main design requirements. Directory enumeration, filtering and sorting run on a worker; changing folders supersedes an unfinished load. Drawing and controller handlers perform no package-size I/O. Selecting entries queues size calculations on a separate worker; unselected folders are not recursively indexed. The list visits only visible cells, independent of how far down a large library you scroll. Alphabetical browsing skips size/date lookups; choosing size sort requests file sizes on the worker. Folder counts and timestamps are omitted from the browser rows to avoid extra drive reads.
+> [!NOTE]
+> SwoleLoader is a fork of [**Sphaira**](https://github.com/ITotalJustice/sphaira) by ITotalJustice. It keeps Sphaira's file browser, USB drive support and YATI installer, and rebuilds the app around one job: installing a whole library of games as fast as the hardware allows. See [Credits](#credits).
 
-Selections belong to a session-wide install list keyed by source and path. Browsing folders, changing sort order and switching panes or mounts preserve them. Parent/child selections count each package once; removing a package inside a selected folder records an exclusion. Completed estimates survive navigation. Exclusion edits can reuse a bounded package catalog instead of rereading the drive; an explicit retry refreshes it. Bulk additions survive navigation and submit at most 32 entries per frame. Each source worker delivers at most 32 changed summaries per poll; only visible rows render.
+## Features
 
-Selected rows show source-file bytes independently of estimated installed bytes. Folder sizes include supported packages recursively, including updates/DLC, and arrive incrementally. NSZ/XCZ sizing first attempts the original content header through the installer's existing header reader, with bounded compression-metadata parsing as a fallback. No payload decompression or full-file hashing is performed for sizing. Transient open/read errors receive one retry; failed estimates can be refreshed and are not permanent cache entries. Partially known sizes are retained.
+**Installing**
 
-The top-right storage bars preview used space, selected content, reserve and remaining space for the active destination. Unknown or pending estimates are marked incomplete; their remaining-space figure assumes all known content is new and excludes additional unknown requirements. The detailed footer totals are optional under **Y → Advanced Options → Install options → Show selection size details**, off by default.
+- 📦 **Batch installs.** Select any number of game folders, or a whole library, and install everything in one run. Base games, updates and DLC are found in subfolders.
+- 🗂️ **Formats:** NSP, NSZ, XCI and XCZ, plus MSP mod packages.
+- 🔌 **Straight from the drive.** Packages install directly from the USB drive, never copied to the microSD card first.
+- 🧾 **Review before installing.** Packages are grouped by game, with source and installed sizes and a free-space check. You can take out single packages or whole games and undo that.
+- 📊 **Whole-list progress.** Switch between the current game and the whole batch, with bytes installed, a progress bar and the time left.
+- 💾 **Choose where games go:** microSD card or system memory, on sysMMC or emuMMC.
 
-The browser accepts up to 100,000 entries in a directory and reports an error above that limit. Sort changes return you to the browser while the new order loads.
+**Built for long batches**
 
-Block-compressed NSZ installation advances through its block table once instead of searching from the beginning for each block. Ordinary NSP content does not allocate decompression buffers. The existing pipelined reads/decompression/writes and integrity checks remain in place. Actual install throughput still depends on the USB connection, compression, target storage and console configuration; host tests do not establish a Switch speedup.
+- 🔋 **Battery guard.** On battery, SwoleLoader warns before starting a batch when the charge is low, stops starting new games as it gets lower, and cancels cleanly before the console dies.
+- 🌙 **Screen off during installs** to save power, with the install still running.
+- ⚡ **Recovery after power loss.** Partly written data from an install that was cut off is removed at the next launch.
+- 🚀 **Fast browsing.** Folders with up to 100,000 entries load on a background worker, and sizes are calculated only for what you select.
 
-NSZ output reuses its buffers and fills the existing 4 MiB write window without overflow copies. The reader's small NCZ header lookahead no longer reserves another 4 MiB per content file. Content is still flushed after writing; metadata parsing reuses that flush, and files that do not need a filesystem path avoid that service call. Buffer limits, verification settings and file-based emuMMC pacing are unchanged.
+**Everything else**
 
-The displayed transfer rate is reconstructed content output per second, calculated from actual elapsed time. For NSZ this can exceed compressed input throughput. It is a current-content rate, not whole-game installation throughput. Batch reports now include whole-package/batch elapsed time, source/output byte counts, time in read/write calls, processing time excluding queue waits, each worker's queue waits, write pacing, and reused/skipped content counts. These measurements do not add disk writes during each chunk; the report is saved once after the batch.
+- 🧲 **USB drives:** FAT32, exFAT and NTFS. They are write-protected by default.
+- 📁 **File manager:** copy, move, rename, delete, zip and unzip, hash, text editor, image viewer and a split view.
+- 🏠 **Forwarders.** Give any homebrew app its own icon on the HOME screen.
+- 🔄 **Signed updates over the air** from this repository's releases.
+- 📝 **Logs, crash reports and batch reports** on the microSD card.
+- 🌍 **16 languages.**
 
-Use `/config/swoleloader/last-batch.txt` to investigate a bottleneck. Stage times overlap because workers run concurrently and must not be added together. Long processor input waits can indicate an input constraint; long processor output waits can indicate destination pressure. Scheduler delays and setup/flush/commit time also matter, so one counter alone does not prove the cause. Output bytes count accepted content-write calls even if a later operation fails; the package result is authoritative. Compare complete installs of equivalent content, excluding skipped runs, and repeat before claiming a speedup.
+## Requirements
 
-## Load it on the Switch
+- A Nintendo Switch running custom firmware (Atmosphère) with the homebrew menu.
+- The homebrew menu started in **full application mode**: on a standard Atmosphère setup, hold **R** while opening any installed game.
+- A USB drive connected to the Switch's USB-C port, the dock, or a USB-C hub.
 
-1. Copy `swoleloader.nro` to `/switch/swoleloader/swoleloader.nro` on the Switch's microSD card, or extract the release ZIP at the card's root. The homebrew-menu entry is **SwoleLoader**, author **AlanConstantino**. Builds from before the rename were called NXLoader-GPT and lived in `/switch/nxloader-gpt/`; delete that folder once SwoleLoader is installed. SwoleLoader copies the old settings from `/config/nxloader/config.ini` on its first launch.
-2. Start the homebrew menu in full application mode and launch **SwoleLoader**. On a standard Atmosphere setup this means holding **R** while opening an installed title and selecting a user. The console must already run CFW.
-3. Connect the external drive to the Switch Lite's USB-C port using a connection that supports USB host data. The inspected `Sandisk_2TB` drive uses exFAT, which is supported.
-4. In the file browser, press **X → Mount** and choose the USB drive. Open the folder containing the game folders with **A**.
-5. Highlight each desired game folder and click **R3**, **ZL**, or **ZR** to select it. Press again to deselect. Continue browsing and selecting in other folders; earlier choices remain selected. The active storage bar previews remaining space. **X → Select all visible** queues the listing, and **X → Clear selection** clears the whole install selection. A minus marker denotes a partially selected folder.
-6. Press **X → Scan and install selection**. Subfolders are included. If installation is disabled, enable it for the current sysMMC/emuMMC environment using the app's prompt, then choose the action again.
-7. Review packages grouped by game, with source/installed sizes at the right. **X** (also R3/ZL/ZR) removes the highlighted package or whole game from this installation; it does not delete source files. **Y** undoes removals, **L** retries sizing (or rescans an unreadable folder), and **A** shows details. Removed rows stay visible and disabled. Choose **Install selected — stop on first error** or **Install selected — continue after errors**. Unknown installed sizes are warnings and can be attempted; known capacity shortages and unavailable destination space remain actionable in this same review. Change the install destination under **Y → Advanced Options → Install options → Install location** before opening review.
-8. While several packages install, **X** switches the progress box between the current game and the whole list. The list view shows the bytes installed out of the total, a progress bar and the time left for everything selected, based on the average speed since the batch started. Press **X** again to return to the current game.
-9. **B** opens the cancellation prompt during scanning or installation. After a batch, return to the same editable review: failed/unfinished packages remain selected, completed packages cannot be queued again by Undo. Remove problem items or retry the remaining selection. Details, including unknown-size reasons for attempted packages, are saved at `/config/swoleloader/last-batch.txt`. The report is saved after every package, so it survives a batch that is cut off.
+## Installation
 
-**+** returns to the homebrew menu at `/hbmenu.nro`. If the homebrew menu is missing or cannot be launched, the app shows an error and stays open. The app opens directly to the file browser. Pressing **A** on an NSP, NSZ, XCI, XCZ or MSP file opens the install review for it, or for the current selection if there is one.
+1. Download the latest release from the [Releases page](https://github.com/AlanConstantino/SwoleLoader/releases).
+2. Extract `swoleloader-<version>.zip` at the root of your microSD card, or copy `swoleloader.nro` to `/switch/swoleloader/`.
+3. Open the homebrew menu and launch **SwoleLoader**.
 
-Sphaira's other features are removed: the appstore and other download menus, network mounts, FTP/MTP, NXlink, launching homebrew or emulators, the album, game and save management, dumping, themes and background music. SwoleLoader only installs packages, updates itself, and keeps the file browser's file operations (copy, move, rename, delete, zip, hash). USB drive options are under **Y → USB drives**.
+After that, SwoleLoader keeps itself up to date (see [Updates](#updates)).
 
-To give a homebrew app its own icon on the HOME screen, highlight its `.nro` on the microSD card and press **X → Install Forwarder**. Installing must be enabled, as for packages. The editor lets you change the title and icon (from the `.nro`, an image file, or SteamGridDB with your own API key) before it installs.
+<details>
+<summary>Upgrading from NXLoader-GPT</summary>
 
-Game grouping follows the folders you select, without reading package payloads or guessing game identities. Select the individual game folders (or use **Select all visible** in their parent folder) for one group per game. Selecting a whole library folder still recursively includes everything, displayed under that selected folder. Loose files use their containing folder, combining conventional Base/Updates/DLC subfolders under their parent game folder.
+Builds from before the rename were called NXLoader-GPT and lived in `/switch/nxloader-gpt/`. Delete that folder once SwoleLoader is installed. SwoleLoader copies your old settings from `/config/nxloader/config.ini` the first time it starts.
 
-## What this version does
+</details>
 
-- Recursively discovers NSP/NSZ, plus the installer's existing XCI/XCZ/MSP formats. Extensions are case insensitive.
-- Selects multiple sibling folders, including a single top-level folder containing an entire collection. A selection belongs to the currently displayed directory.
-- Scans on a worker thread without reading package payloads or copying them onto the microSD first.
-- Deduplicates overlapping paths and presents the queue in lexical path order. This does not infer base/update/DLC dependencies from filenames or deduplicate different copies of the same title. Sphaira's existing installed-content checks remain enabled by default.
-- Installs one package at a time through YATI, retaining its buffered reads, NSZ decompression, content writes, and integrity checks.
-- Skips hidden subdirectories, AppleDouble `._` files, and directory entries identified as symlinks. An explicitly selected hidden folder can still be scanned.
-- Rejects incomplete scans on read errors, cancellation, overlong paths, or resource limits instead of installing a partial discovery result. Limits: 32,768 packages and 16,384 directories per scan.
-- Defaults USB storage to write protected. The scanner and batch installer read source packages; the report and configuration are written to microSD.
+## Quick start
 
-`Completed` means the installer returned success; existing-content skips also count as completed. Cancellation does not uninstall packages already completed. A batch is not persisted for restart/resume. The report records attempted packages and an unfinished count.
+1. Plug in your USB drive. In the file browser, press **X → Mount** and choose the drive.
+2. Browse to your games. Select each game folder with **ZL**, **ZR** or **R3**, or use **X → Select all visible**. Selections are kept as you move between folders.
+3. Press **X → Scan and install selection**. If installing is turned off on this console, SwoleLoader asks to turn it on.
+4. Check the review, take out anything you don't want, and choose **Install selected**.
+5. Wait for it to finish. Afterwards you're back in the review: anything that failed is still selected, so you can retry it.
 
-Storage estimates assume all selected content is new, so existing-content skips can make actual usage lower. Capacity checks reserve 64 MiB plus 64 KiB per content file for filesystem/database overhead. The review refreshes package metadata instead of trusting cached selection estimates, then checks free space again before the batch and each package. Background size work is cancelled and drained before scanning/installing, so it does not compete with installation reads/writes. These are conservative estimates, not an integrity check or a guarantee against later media errors. MSP and unsupported/malformed size metadata remain unknown but do not by themselves block an attempt. The installer still applies its normal validation and handles actual allocation errors. A failed folder scan appears as a removable/retryable issue while readable packages remain available.
+To install a single file, highlight it and press **A**.
 
-## Build
+To change where games are installed, go to **Y → Advanced Options → Install options → Install location** before you open the review.
 
-A running Podman or Docker engine is required. The wrapper chooses Podman when installed; `CONTAINER_ENGINE=docker` overrides it. It builds a pinned devkitA64/libnx/libgloss image and retains compilation cache between runs.
+A report of the last batch is saved to `/config/swoleloader/last-batch.txt`.
 
-```sh
-./tools/nxloader-build.sh Dev
-./tools/nxloader-build.sh Release
-```
+## Controls
 
-Outputs are `build/Dev/swoleloader.nro` or `build/Release/swoleloader.nro`, and a matching `switch/swoleloader/swoleloader.nro` directory inside that build. `NXLOADER_BUILD_JOBS=4` is the default. The first build fetches dependencies and needs network access.
+| Where | Button | Action |
+| --- | --- | --- |
+| File browser | **A** | Open a folder, review a package for install, or view an image |
+| | **ZL** / **ZR** / **R3** | Select or deselect |
+| | **X** | Options: mount, install, file operations, forwarders |
+| | **Y** | Menu: settings, updates, language, USB drives |
+| | **L3** | Split view |
+| | **B** | Back |
+| | **+** | Return to the homebrew menu |
+| Review | **X** | Remove the highlighted package or game |
+| | **Y** | Undo removals |
+| | **L** | Retry sizing, or rescan an unreadable folder |
+| | **A** | Details |
+| Installing | **X** | Switch between the current game and the whole list |
+| | **B** | Cancel |
 
-Use `./build_release.sh` to build Release into `dist/`: the `.nro`, its update signature, a ZIP for installing by hand, and a ZIP of debug symbols for crash reports. The app's name, author, version, install folder and update repository are set in [app.cmake](app.cmake).
+## Forwarders
+
+To give a homebrew app its own HOME screen icon, highlight its `.nro` on the microSD card and press **X → Install Forwarder**. Before it installs, you can change the title and choose the icon from:
+
+- the `.nro` itself;
+- an image file;
+- SteamGridDB, which needs your own API key.
+
+Installing must be turned on, the same as for games.
 
 ## Battery and power loss
 
-In handheld mode a USB drive takes the console's only USB-C port, so it can't charge during a long batch. Install docked, with the drive in the dock, or use a USB-C hub with charging passthrough. A flash drive or SSD draws much less power than a hard drive.
+In handheld mode the USB drive takes the only USB-C port, so the Switch can't charge during a long batch. For big installs, use the dock with the drive plugged into it, or a USB-C hub with charging passthrough. Flash drives and SSDs use far less power than hard drives.
 
-- **Battery guard** (**Install options → Stop when battery is low**, on by default). The progress box shows the battery. On battery, a batch asks before starting below 30%, starts no new game at 15% or below, and cancels the current game at 5%, which removes its partly written data. Games already installed are kept, and the rest stay in Review. On the dock or a full-power charger it does nothing. A weaker charger counts as battery, since the console can still drain on one.
-- **Screen off during installs** (**Advanced Options**, 1 minute by default). During installs and other long tasks, in handheld mode, the screen turns off after that long without input. Any button or touch turns it back on, and the task keeps running. **Y** still turns it off at once. While the screen is off the app stops drawing.
-- **Boost only for compressed games** (**Advanced Options**, on by default). The CPU is boosted only while NSZ/XCZ content is unpacked, which is CPU bound. Plain NSP/XCI installs and copies are limited by the drive. To compare speeds, turn it off to boost every transfer as before, and compare the times in `last-batch.txt`.
+- **Battery guard** (**Install options → Stop when battery is low**, on by default). On battery, SwoleLoader:
+  - asks before starting a batch below 30%;
+  - starts no new game at 15% or below;
+  - cancels the current game at 5%, removing its partly written data.
 
-If an install is cut off, by power loss or a crash, its partly written data is removed at the next launch. Each install lists the temporary files it creates in `/config/swoleloader/interrupted-install.txt` and removes the list when it ends, so a list left behind means an install was interrupted. Only those files are deleted, never system downloads. A notification says how much space came back.
+  Games already installed are kept, and the rest stay in the review. On the dock or a full-power charger the guard does nothing.
+- **Screen off during installs** (**Advanced Options**, after 1 minute by default). Any button or touch turns the screen back on, and **Y** turns it off at once.
+- **Boost only for compressed games** (**Advanced Options**, on by default). The CPU is boosted only while NSZ and XCZ content is unpacked. Plain NSP and XCI installs are limited by the drive, not the CPU.
 
-Games finished before the cutoff are installed. Select the same folders and install again: with **Skip if already installed** on, the finished ones are skipped quickly, and the interrupted game starts over.
+If an install is cut off by power loss or a crash, its partly written data is cleaned up the next time SwoleLoader starts, and a notification says how much space came back. Install the same selection again: with **Skip if already installed** on, the games that finished are skipped quickly.
+
+## Updates
+
+SwoleLoader checks this repository's releases at launch and from **Y → Check for updates**. It always asks before installing an update. It only installs releases signed with the project's key, so a tampered download or another app's release is rejected. Turn off the launch check under **Advanced Options → Check for updates on launch**.
 
 ## Logs and crash reports
 
-Logging is on by default (**Y → Advanced Options → Logging**). Files go to `/config/swoleloader/logs/` on the microSD card:
+Logs are on by default (**Y → Advanced Options → Logging**) and go to `/config/swoleloader/logs/`:
 
-- `log.txt`: this session. It starts with the app version, launch mode, memory and free space.
-- `previous.txt`: the session before. After a crash or freeze, this is the one to read. A session that passes 4 MiB also moves its older half here.
-- `crash.txt`: the most recent crash. It is written even with logging off.
+| File | Contents |
+| --- | --- |
+| `log.txt` | This session |
+| `previous.txt` | The session before. Read this one after a crash or freeze |
+| `crash.txt` | The most recent crash, written even with logging off |
 
-The log records install batches, errors and notifications, along with the existing detail from the installer, USB, network and updates. Lines are written in batches about once a second, and failures are written immediately, so logging no longer slows installs the way per-line writes did. **Y → Advanced Options → View logs** opens any of the three on the console. A crash report shows its addresses as `nro+0x…`. To turn them into functions and source lines, use the symbols file from the same version:
+Read them on the console with **Y → Advanced Options → View logs**. To turn a crash report's addresses into functions and source lines, use the symbols file from the same release:
 
 ```sh
 tools/symbolize.sh swoleloader-0.1.6.elf crash.txt
 ```
 
-Each release includes `<folder>-<version>-symbols.zip`, which holds that `.elf`. For a local build it is `build/Release/sphaira/sphaira.elf`. A crash report only matches the exact build that produced it.
+## Building from source
 
-## Updates
-
-The app can update itself from GitHub releases: **Y → Check for updates**, plus an automatic check at launch (**Advanced Options → Check for updates on launch**). It only installs releases signed with the project's key and never installs without asking. Updates stay off until `APP_UPDATE_REPO` in [app.cmake](app.cmake) names the release repository. [RELEASING.md](RELEASING.md) covers setup, publishing a version, the signing key and renaming the app.
-
-## Verification
+You need Podman or Docker. The build script makes a pinned devkitA64/libnx image and keeps a compile cache between runs.
 
 ```sh
-sh tests/nxloader/run.sh
+./tools/nxloader-build.sh Release      # or Dev
+sh tests/nxloader/run.sh               # host tests
 ```
 
-Host tests exercise the scanner against in-memory directories and temporary real directories: nesting, multiple roots, duplicate selections, mixed-case extensions, Unicode, metadata files, symlink cycles, errors, cancellation, and bounds. They do not call Switch installation services.
+The app ends up in `build/Release/swoleloader.nro`.
 
-Additional tests check bounded visible-list drawing/touch traversal and monotonic NCZ block lookup. [Traversal benchmark details](tests/nxloader/list_benchmark.md) document a host microbenchmark, not complete UI or installation performance.
+- `./build_release.sh` builds a signed release into `dist/`.
+- The app's name, version, folder and update repository are set in [`app.cmake`](app.cmake).
+- [RELEASING.md](RELEASING.md) covers publishing a version and the signing key.
+- [docs/TECHNICAL.md](docs/TECHNICAL.md) explains the browser and installer internals and what the host tests cover.
 
-Real-zstd output tests check reconstructed bytes across output boundaries, fragmented input, raw/compressed blocks, recycled buffers, errors and cancellation. Transfer-rate tests cover delayed/unequal intervals, idle time, transfer resets, offset rewinds and unknown ETA. Diagnostic-report tests keep compressed input, accepted output, elapsed time and skip counters distinct. The NCZ tests require a host zstd development library (`pkg-config libzstd`).
+## Credits
 
-Game-folder review tests cover updates/DLC, arbitrary nested folder names, overlapping selections, empty folders, loose files, mounted/relative paths, cancellation, and 20,000 packages across 10,000 selected game folders. Review grouping and row construction run on the scan worker, and the review takes ownership of the prepared rows.
+SwoleLoader is built on [**Sphaira**](https://github.com/ITotalJustice/sphaira) by [ITotalJustice](https://github.com/ITotalJustice) and its contributors. It is based on [NaGaa95/sphaira](https://github.com/NaGaa95/sphaira) at commit `8430e420f0ea4ea800c6689f6797c38e97aafbc0` (Sphaira 1.0.9). The installer, file browser, USB drive support and much of the UI come from Sphaira. Sphaira's original README and full credits are kept in [UPSTREAM.md](UPSTREAM.md).
 
-Size tests cover bounded sparse NSP/NSZ/XCI/XCZ metadata, expansion, malformed input and cancellation. Worker tests cover 10,000 selections, bounded polling, cache reuse/eviction, stale-result rejection, pause/resume and retiring blocked I/O. Capacity tests cover reserves, shortage, unknown/overflow handling and storage-bar bounds. Selection-cart tests cover persistent multi-source paths, parent/child deduplication, exclusions, review removal/undo, completed-package protection, partial read errors and 10,000 queued selections. The parser tests exercise the original-header fallback and preservation of known portions. Footer tests check long labels stay on-screen with disjoint touch targets. Host tests do not establish console responsiveness or installation throughput.
+SwoleLoader keeps its settings and caches in `/config/swoleloader/`, so it can sit next to Sphaira on the same microSD card without the two touching each other's settings.
 
-The NRO can be cross-compiled and structurally checked here, but actual USB discovery, controller interaction, installation, cancellation cleanup, and throughput must be verified on a Switch. No console performance improvement is claimed from host tests. Start hardware verification with one small package, then two folders, then a larger batch; test a cancelled scan and a disconnected drive before relying on unattended installation.
+Thanks also to the libraries SwoleLoader depends on, including [libnx](https://github.com/switchbrew/libnx), [libusbhsfs](https://github.com/DarkMatterCore/libusbhsfs), [nx-hbloader](https://github.com/switchbrew/nx-hbloader), [deko3d-nanovg](https://github.com/Adubbz/nanovg-deko3d), [libpulsar](https://github.com/p-sam/switch-libpulsar) and [zstd](https://github.com/facebook/zstd).
 
-## Source and license
+## License
 
-Based on [NaGaa95/sphaira](https://github.com/NaGaa95/sphaira) commit `8430e420f0ea4ea800c6689f6797c38e97aafbc0` (Sphaira 1.0.9). The GPLv3 license is retained in [LICENSE](LICENSE); original documentation and contributor credits are retained in [UPSTREAM.md](UPSTREAM.md).
-
-SwoleLoader keeps its settings, logs, translation overrides and caches in `/config/swoleloader/`, so it doesn't touch a Sphaira install on the same card. Its updater only checks the repository in `app.cmake` and only installs releases signed with this project's key, so a Sphaira release cannot replace the custom build. Some inherited UI labels still use the Sphaira name. SwoleLoader's additions are in `sphaira/include/nxloader/`, `sphaira/source/nxloader/`, and the file-browser integration.
+SwoleLoader is licensed under the [GNU General Public License v3.0](LICENSE), the same license as Sphaira.
