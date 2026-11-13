@@ -25,7 +25,10 @@ image=localhost/nxloader-builder:local
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/nxloader-ccache
 mkdir -p "$cache"
 
-"$engine" build --build-arg "BUILD_JOBS=$jobs" -t "$image" "$root/tools/nxloader-builder"
+# CI builds the image itself, from a layer cache, and sets this to reuse it.
+if [ -z "${NXLOADER_SKIP_IMAGE_BUILD:-}" ]; then
+    "$engine" build --build-arg "BUILD_JOBS=$jobs" -t "$image" "$root/tools/nxloader-builder"
+fi
 "$engine" run --rm \
     -v "$root:/src" -v "$cache:/ccache" \
     "$image" sh -c 'cmake --preset "$1" && cmake --build --preset "$1" --parallel "$2"' \
